@@ -44,12 +44,18 @@ fun MainScaffold(
     }
 
     val readyState = updateState as? AppUpdateState.ReadyToInstall
-    if (showUpdatePrompt && readyState != null) {
+    val downloadingState = updateState as? AppUpdateState.Downloading
+    if (showUpdatePrompt && (readyState != null || downloadingState != null)) {
         MobileUpdateDialog(
-            latestVersion = readyState.latestVersion,
+            latestVersion = when {
+                readyState != null -> readyState.latestVersion
+                downloadingState != null -> downloadingState.latestVersion
+                else -> ""
+            },
             currentVersion = BuildConfig.VERSION_NAME,
+            downloadingState = downloadingState,
             onInstallNow = {
-                AppUpdateManager.installApk(context, readyState.apkFile)
+                readyState?.let { AppUpdateManager.installApk(context, it.apkFile) }
             },
             onDismiss = {
                 AppUpdateManager.dismissUpdatePrompt()

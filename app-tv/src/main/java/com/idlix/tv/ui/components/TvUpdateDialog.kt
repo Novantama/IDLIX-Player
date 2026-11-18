@@ -47,13 +47,14 @@ import com.idlix.tv.ui.theme.NetflixWhite
 fun TvUpdateDialog(
     latestVersion: String,
     currentVersion: String,
+    downloadingState: AppUpdateState.Downloading? = null,
     onInstallNow: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val installFocusRequester = remember { FocusRequester() }
     val appName = stringResource(R.string.app_name)
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(downloadingState == null) {
         try {
             installFocusRequester.requestFocus()
         } catch (_: Exception) {
@@ -102,7 +103,7 @@ fun TvUpdateDialog(
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
                         Text(
-                            text = stringResource(R.string.update_dialog_badge),
+                            text = if (downloadingState != null) "MENGUNDUH" else stringResource(R.string.update_dialog_badge),
                             color = NetflixWhite,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
@@ -111,23 +112,67 @@ fun TvUpdateDialog(
                 }
 
                 Text(
-                    text = stringResource(R.string.update_dialog_title, latestVersion),
+                    text = if (downloadingState != null) "Mengunduh Pembaruan (v$latestVersion)" else stringResource(R.string.update_dialog_title, latestVersion),
                     color = NetflixWhite,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
 
-                Text(
-                    text = stringResource(
-                        R.string.update_dialog_message,
-                        appName,
-                        latestVersion,
-                        currentVersion
-                    ),
-                    color = NetflixLightGray,
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp
-                )
+                if (downloadingState != null) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "Versi terbaru v$latestVersion tersedia. Pembaruan sedang diunduh...",
+                            color = NetflixLightGray,
+                            fontSize = 13.sp,
+                            lineHeight = 19.sp
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .background(NetflixWhite.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(fraction = (downloadingState.progressPercent / 100f).coerceIn(0f, 1f))
+                                    .height(8.dp)
+                                    .background(NetflixRed, RoundedCornerShape(4.dp))
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "${downloadingState.progressPercent}%",
+                                color = NetflixRed,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            val downloadedMb = downloadingState.downloadedBytes / (1024.0 * 1024.0)
+                            val totalMb = downloadingState.totalBytes / (1024.0 * 1024.0)
+                            if (totalMb > 0) {
+                                Text(
+                                    text = "${String.format(java.util.Locale.US, "%.1f", downloadedMb)} MB / ${String.format(java.util.Locale.US, "%.1f", totalMb)} MB",
+                                    color = NetflixLightGray,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        text = stringResource(
+                            R.string.update_dialog_message,
+                            appName,
+                            latestVersion,
+                            currentVersion
+                        ),
+                        color = NetflixLightGray,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(4.dp))
 
@@ -145,44 +190,48 @@ fun TvUpdateDialog(
                             focusedContentColor = NetflixBlack
                         ),
                         shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
-                        modifier = Modifier.height(42.dp)
+                        modifier = Modifier
+                            .height(42.dp)
+                            .then(if (downloadingState != null) Modifier.focusRequester(installFocusRequester) else Modifier)
                     ) {
                         Text(
-                            text = stringResource(R.string.update_dialog_later),
+                            text = if (downloadingState != null) "Latar Belakang" else stringResource(R.string.update_dialog_later),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(horizontal = 8.dp)
                         )
                     }
 
-                    Button(
-                        onClick = onInstallNow,
-                        colors = ButtonDefaults.colors(
-                            containerColor = NetflixRed,
-                            focusedContainerColor = NetflixWhite,
-                            contentColor = NetflixWhite,
-                            focusedContentColor = NetflixBlack
-                        ),
-                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
-                        modifier = Modifier
-                            .height(42.dp)
-                            .focusRequester(installFocusRequester)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp)
+                    if (downloadingState == null) {
+                        Button(
+                            onClick = onInstallNow,
+                            colors = ButtonDefaults.colors(
+                                containerColor = NetflixRed,
+                                focusedContainerColor = NetflixWhite,
+                                contentColor = NetflixWhite,
+                                focusedContentColor = NetflixBlack
+                            ),
+                            shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                            modifier = Modifier
+                                .height(42.dp)
+                                .focusRequester(installFocusRequester)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.SystemUpdateAlt,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = stringResource(R.string.update_dialog_install_now),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SystemUpdateAlt,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = stringResource(R.string.update_dialog_install_now),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }

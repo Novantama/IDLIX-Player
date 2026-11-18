@@ -18,11 +18,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -34,11 +36,13 @@ import com.idlix.mobile.ui.theme.IdlixRed
 import com.idlix.mobile.ui.theme.SurfaceDark
 import com.idlix.mobile.ui.theme.TextMuted
 import com.idlix.mobile.ui.theme.TextWhite
+import java.util.Locale
 
 @Composable
 fun MobileUpdateDialog(
     latestVersion: String,
     currentVersion: String,
+    downloadingState: AppUpdateState.Downloading? = null,
     onInstallNow: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -74,7 +78,7 @@ fun MobileUpdateDialog(
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
                         Text(
-                            text = stringResource(R.string.update_dialog_badge),
+                            text = if (downloadingState != null) "MENGUNDUH" else stringResource(R.string.update_dialog_badge),
                             color = TextWhite,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
@@ -83,7 +87,7 @@ fun MobileUpdateDialog(
                 }
 
                 Text(
-                    text = stringResource(R.string.update_dialog_title, latestVersion),
+                    text = if (downloadingState != null) "Mengunduh Pembaruan (v$latestVersion)" else stringResource(R.string.update_dialog_title, latestVersion),
                     color = TextWhite,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
@@ -91,43 +95,85 @@ fun MobileUpdateDialog(
             }
         },
         text = {
-            Text(
-                text = stringResource(
-                    R.string.update_dialog_message,
-                    appName,
-                    latestVersion,
-                    currentVersion
-                ),
-                color = TextMuted,
-                fontSize = 14.sp,
-                lineHeight = 20.sp
-            )
+            if (downloadingState != null) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Versi terbaru v$latestVersion tersedia. Pembaruan sedang diunduh secara otomatis...",
+                        color = TextMuted,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                    LinearProgressIndicator(
+                        progress = { (downloadingState.progressPercent / 100f).coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        color = IdlixRed,
+                        trackColor = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.1f)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "${downloadingState.progressPercent}%",
+                            color = IdlixRed,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        val downloadedMb = downloadingState.downloadedBytes / (1024.0 * 1024.0)
+                        val totalMb = downloadingState.totalBytes / (1024.0 * 1024.0)
+                        if (totalMb > 0) {
+                            Text(
+                                text = "${String.format(Locale.US, "%.1f", downloadedMb)} MB / ${String.format(Locale.US, "%.1f", totalMb)} MB",
+                                color = TextMuted,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            } else {
+                Text(
+                    text = stringResource(
+                        R.string.update_dialog_message,
+                        appName,
+                        latestVersion,
+                        currentVersion
+                    ),
+                    color = TextMuted,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+            }
         },
         confirmButton = {
-            Button(
-                onClick = onInstallNow,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = IdlixRed,
-                    contentColor = TextWhite
-                ),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SystemUpdateAlt,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = stringResource(R.string.update_dialog_install_now),
-                    fontWeight = FontWeight.Bold
-                )
+            if (downloadingState == null) {
+                Button(
+                    onClick = onInstallNow,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = IdlixRed,
+                        contentColor = TextWhite
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SystemUpdateAlt,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.update_dialog_install_now),
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(
-                    text = stringResource(R.string.update_dialog_later),
+                    text = if (downloadingState != null) "Latar Belakang" else stringResource(R.string.update_dialog_later),
                     color = TextMuted
                 )
             }

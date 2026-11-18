@@ -146,6 +146,7 @@ object AppUpdateManager {
             }
 
             if (iniContent == null) {
+                hasCheckedOnStartup = false
                 _state.value = if (lastHttpCode != null) {
                     AppUpdateState.Error(
                         errorType = AppUpdateErrorType.HTTP_ERROR,
@@ -201,6 +202,8 @@ object AppUpdateManager {
             } else {
                 sectionInfo.link
             }
+
+            _showUpdatePrompt.value = true
 
             downloadApk(
                 context = appContext,
@@ -308,6 +311,7 @@ object AppUpdateManager {
             )
             _showUpdatePrompt.value = true
         } catch (e: Exception) {
+            hasCheckedOnStartup = false
             tempFile.delete()
             _state.value = AppUpdateState.Error(
                 errorType = AppUpdateErrorType.DOWNLOAD_FAILED,
