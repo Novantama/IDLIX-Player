@@ -86,15 +86,15 @@ object ReleaseIniParser {
     }
 
     /**
-     * Mengembalikan true apabila versi aplikasi saat ini tidak cocok atau berada di bawah
-     * key Version pada endpoint releases.ini.
+     * Mengembalikan true HANYA jika remoteVersion secara semantik lebih tinggi dari currentVersion.
+     * Mencegah aplikasi mendownload atau meminta update ke versi lama (downgrade).
      */
     fun isUpdateRequired(currentVersion: String, remoteVersion: String): Boolean {
         val cleanCurrent = normalizeVersion(currentVersion)
         val cleanRemote = normalizeVersion(remoteVersion)
         if (cleanRemote.isEmpty()) return false
         if (cleanCurrent.equals(cleanRemote, ignoreCase = true)) return false
-        return compareSemanticVersion(cleanCurrent, cleanRemote) < 0 || !cleanCurrent.equals(cleanRemote, ignoreCase = true)
+        return compareSemanticVersion(cleanCurrent, cleanRemote) < 0
     }
 }
 

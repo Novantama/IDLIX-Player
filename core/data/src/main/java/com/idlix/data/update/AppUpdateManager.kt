@@ -106,7 +106,13 @@ object AppUpdateManager {
             val timestamp = System.currentTimeMillis()
             val candidateEndpoints = mutableListOf<String>()
 
-            // 1. Cek local backend server terlebih dahulu jika terhubung di jaringan Wi-Fi
+            // 1. Direct GitHub API endpoint (real-time, no Fastly edge cache delay)
+            candidateEndpoints.add("https://api.github.com/repos/claudiaaulerie/IDLIX-Player/contents/releases.ini")
+
+            // 2. Direct GitHub raw endpoint di repository claudiaaulerie/IDLIX-Player
+            candidateEndpoints.add("$RELEASES_INI_BASE_URL?nocache=$timestamp")
+
+            // 3. Cek local backend server jika terhubung di jaringan Wi-Fi
             val currentBase = ApiClient.getBaseUrl().trimEnd('/')
             if (currentBase.isNotBlank() &&
                 !currentBase.contains("idlixku.com", ignoreCase = true) &&
@@ -114,8 +120,6 @@ object AppUpdateManager {
             ) {
                 candidateEndpoints.add("$currentBase/api/update/releases.ini?ts=$timestamp")
             }
-            // 2. Direct GitHub raw endpoint di repository claudiaaulerie/IDLIX-Player
-            candidateEndpoints.add("$RELEASES_INI_BASE_URL?ts=$timestamp")
 
             var iniContent: String? = null
             var lastHttpCode: Int? = null
@@ -123,10 +127,13 @@ object AppUpdateManager {
 
             for (endpoint in candidateEndpoints) {
                 try {
-                    val request = Request.Builder()
+                    val reqBuilder = Request.Builder()
                         .url(endpoint)
                         .get()
-                        .build()
+                    if (endpoint.contains("api.github.com")) {
+                        reqBuilder.header("Accept", "application/vnd.github.v3.raw")
+                    }
+                    val request = reqBuilder.build()
 
                     ApiClient.updateHttpClient.newCall(request).execute().use { response ->
                         if (response.isSuccessful) {
@@ -183,7 +190,7 @@ object AppUpdateManager {
             val safeVersionToken = remoteVersion.replace(Regex("[^a-zA-Z0-9._-]"), "_")
             val targetApkFile = File(updatesDir, "idlix_${platform.name.lowercase()}_$safeVersionToken.apk")
 
-            if (targetApkFile.exists() && isValidApk(appContext, targetApkFile)) {
+            if (targetApkFile.exists() && isValidApk(appContext, targetApkFile, remoteVersion)) {
                 cleanupOldApks(appContext, keepFileName = targetApkFile.name)
                 _state.value = AppUpdateState.ReadyToInstall(
                     latestVersion = remoteVersion,
@@ -291,7 +298,7 @@ object AppUpdateManager {
                 }
             }
 
-            if (!tempFile.exists() || tempFile.length() == 0L || !isValidApk(context, tempFile)) {
+            if (!tempFile.exists() || tempFile.length() == 0L || !isValidApk(context, tempFile, latestVersion)) {
                 tempFile.delete()
                 _state.value = AppUpdateState.Error(
                     errorType = AppUpdateErrorType.INVALID_APK
@@ -320,7 +327,7 @@ object AppUpdateManager {
         }
     }
 
-    private fun isValidApk(context: Context, file: File): Boolean {
+    private fun isValidApk(context: Context, file: File, expectedVersion: String? = null): Boolean {
         if (!file.exists() || file.length() <= 0L) return false
         return try {
             val archiveInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -332,7 +339,14 @@ object AppUpdateManager {
                 @Suppress("DEPRECATION")
                 context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
             }
-            archiveInfo != null
+            if (archiveInfo == null) return false
+            if (expectedVersion != null) {
+                val apkVer = archiveInfo.versionName?.let { ReleaseIniParser.normalizeVersion(it) }
+                if (apkVer != null && apkVer != ReleaseIniParser.normalizeVersion(expectedVersion)) {
+                    return false
+                }
+            }
+            true
         } catch (_: Exception) {
             false
         }

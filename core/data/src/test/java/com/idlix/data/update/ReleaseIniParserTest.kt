@@ -59,12 +59,18 @@ class ReleaseIniParserTest {
     }
 
     @Test
-    fun `isUpdateRequired returns false when versions match and true when lower or mismatched`() {
+    fun `isUpdateRequired returns true only when remote version is strictly higher`() {
         assertFalse(ReleaseIniParser.isUpdateRequired("1.0.5", "1.0.5"))
         assertFalse(ReleaseIniParser.isUpdateRequired("v1.0.5", "1.0.5"))
         assertTrue(ReleaseIniParser.isUpdateRequired("1.0.4", "1.0.5"))
         assertTrue(ReleaseIniParser.isUpdateRequired("1.0.1", "1.0.2"))
         assertTrue(ReleaseIniParser.isUpdateRequired("1.0.2", "1.0.5"))
+
+        // Downgrade protection: current version is already higher than or equal to remote
+        assertFalse(ReleaseIniParser.isUpdateRequired("1.0.5", "1.0.3"))
+        assertFalse(ReleaseIniParser.isUpdateRequired("1.0.5", "1.0.4"))
+        assertFalse(ReleaseIniParser.isUpdateRequired("1.0.6", "1.0.5"))
+        assertFalse(ReleaseIniParser.isUpdateRequired("2.0.0", "1.0.5"))
     }
 }
 
