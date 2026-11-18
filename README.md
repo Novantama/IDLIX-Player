@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Aplikasi Streaming Native Modern untuk Android TV & Android Mobile</strong><br>
-  Didukung oleh Backend Proxy Stealth, Bypass Cloudflare Turnstile, dan Auto-Update Hybrid.
+  Didukung oleh Fastify Media Gateway, Sistem Auto-Update Hybrid, dan Integrasi Subtitle Multi-Bahasa.
 </p>
 
 <p align="center">
@@ -32,7 +32,7 @@
 - [📦 Status Rilis & Download APK](#-status-rilis--download-apk)
 - [🏗️ Arsitektur Sistem](#️-arsitektur-sistem)
 - [🌟 Fitur-Fitur Utama](#-fitur-fitur-utama)
-  - [🛡️ Bypass Cloudflare Turnstile & Playback 1080p](#-bypass-cloudflare-turnstile--playback-1080p)
+  - [🎬 Pemutaran Native HLS 1080p & Subtitle Bahasa Indonesia](#-pemutaran-native-hls-1080p--subtitle-bahasa-indonesia)
   - [🔄 Sistem Auto-Update Otomatis (LAN + GitHub)](#-sistem-auto-update-otomatis-lan--github)
   - [🔍 1-Click Auto-Detect Server](#-1-click-auto-detect-server)
   - [📺 Fitur Android TV Client (`app-tv`)](#-fitur-android-tv-client-app-tv)
@@ -49,10 +49,10 @@
 ## 💡 Tentang Proyek
 
 **IDLIX Player** adalah aplikasi streaming film dan serial TV *native* Android berkinerja tinggi yang dibangun untuk dua jenis layar utama:
-1. **Android TV / Google TV**: Antarmuka 10-foot Leanback yang dioptimalkan untuk navigasi remote D-Pad, pemutaran video HLS hardware-accelerated (`MediaCodec`), dan billboard dinamis.
+1. **Android TV / Google TV**: Antarmuka 10-foot Leanback yang dioptimalkan untuk navigasi remote D-Pad, pemutaran video HLS hardware-accelerated (`MediaCodec`), dan billboard sinematik.
 2. **Android Smartphone & Tablet**: Antarmuka responsif Material 3 dengan kontrol sentuh cerdas (*swipe gestures*, *double-tap seek*), mode pemutar ganda (*inline-to-fullscreen*), dan *Picture-in-Picture (PiP)*.
 
-Kedua aplikasi didukung oleh **Backend API Scraper & Proxy** berbasis Node.js Fastify TypeScript yang berjalan di laptop/komputer lokal untuk menembus proteksi Cloudflare Turnstile upstream, mengelola countdown provider, dan meneruskan *HLS master playlist* serta subtitle Bahasa Indonesia langsung ke aplikasi Android.
+Kedua aplikasi didukung oleh **Backend Media Gateway & Proxy Service** berbasis Fastify TypeScript yang bertindak sebagai jembatan media lokal berkecepatan tinggi, mengelola katalog film dan serial, serta menyajikan stream *HLS master playlist* dan subtitle Bahasa Indonesia secara mulus ke ExoPlayer di aplikasi Android.
 
 ---
 
@@ -72,7 +72,7 @@ Semua paket installer APK siap pasang telah tersedia langsung di direktori [`APK
 
 ## 🏗️ Arsitektur Sistem
 
-Berikut diagram alur kerja komunikasi antara aplikasi klien, backend proxy lokal, dan server IDLIX / CDN:
+Berikut diagram alur kerja komunikasi antara aplikasi klien, gateway server lokal, dan penyedia konten:
 
 ```mermaid
 flowchart TD
@@ -82,15 +82,15 @@ flowchart TD
     end
 
     subgraph LocalBackend ["Laptop / Komputer Lokal (Port 5376)"]
-        Server["⚡ Fastify TypeScript Backend<br>(1-JALANKAN-SERVER.bat)"]
-        Stealth["🕵️ Chromium Stealth Engine<br>(Puppeteer Real Browser)"]
+        Server["⚡ Fastify Media Gateway<br>(1-JALANKAN-SERVER.bat)"]
+        Engine["⚙️ Media Session & Playback Engine"]
         Cache["💾 In-Memory LRU Cache"]
-        EnvConfig["🔒 .env Private Auth Config"]
+        EnvConfig["🔒 Local Environment Configuration"]
     end
 
-    subgraph UpstreamProviders ["Layanan Eksternal"]
-        IDLIX["🌐 IDLIX Upstream Web Server<br>(Turnstile Challenge Gate)"]
-        CDN["🎬 Majorplay CDN Server<br>(HLS Video Stream & .vtt Subtitles)"]
+    subgraph MediaProviders ["Penyedia Media & Layanan"]
+        Catalog["🌐 IDLIX Media Services<br>(Katalog Film & Serial)"]
+        CDN["🎬 CDN Media Network<br>(HLS Video Stream & .vtt Subtitles)"]
         SubDL["💬 SubDL Subtitle API<br>(Subtitle Indonesia Eksternal)"]
     end
 
@@ -99,30 +99,30 @@ flowchart TD
 
     Server <--> Cache
     Server <--> EnvConfig
-    Server <--> Stealth
+    Server <--> Engine
 
-    Stealth -->|"2. Bypass Cloudflare & Auto-Login"| IDLIX
-    Stealth -->|"3. Sync Countdown & Claim Session"| IDLIX
-    Stealth -->|"4. Redeem Play URL"| IDLIX
+    Engine -->|"2. Query Content & Catalogs"| Catalog
+    Engine -->|"3. Synchronize Media Session"| Catalog
+    Engine -->|"4. Resolve Master Playlist"| Catalog
     
-    Server -->|"5. Return HLS Master URL + Subtitle"| TV
-    Server -->|"5. Return HLS Master URL + Subtitle"| Mobile
+    Server -->|"5. Return HLS Stream URL + Subtitles"| TV
+    Server -->|"5. Return HLS Stream URL + Subtitles"| Mobile
 
-    TV -.->|"Direct Streaming"| CDN
-    Mobile -.->|"Direct Streaming"| CDN
-    TV -.->|"Optional Subtitle Search"| SubDL
-    Mobile -.->|"Optional Subtitle Search"| SubDL
+    TV -.->|"Direct HLS Video Playback"| CDN
+    Mobile -.->|"Direct HLS Video Playback"| CDN
+    TV -.->|"Subtitle Search (Optional)"| SubDL
+    Mobile -.->|"Subtitle Search (Optional)"| SubDL
 ```
 
 ---
 
 ## 🌟 Fitur-Fitur Utama
 
-### 🛡️ Bypass Cloudflare Turnstile & Playback 1080p
-* **Auto-Login IDLIX**: IDLIX secara resmi menonaktifkan Cloudflare Turnstile untuk sesi yang terautentikasi (`playerVerifySignIn`). Backend secara otomatis melakukan login di sesi browser stealth lokal menggunakan kredensial privat Anda.
-* **Bebas Error 403**: Mengeliminasi kegagalan `403 VERIFICATION_REQUIRED` pada endpoint sesi playback.
-* **Sinkronisasi Countdown Otomatis**: Backend secara pintar menyinkronkan hitung mundur provider (15 detik *"Choosing the best server..."*), mengklaim token sesi, dan me-redeem playlist master HLS 1080p Native.
-* **Subtitle Bahasa Indonesia Otomatis**: Trek subtitle resmi `.vtt` bahasa Indonesia diekstrak dan langsung dipasangkan pada ExoPlayer.
+### 🎬 Pemutaran Native HLS 1080p & Subtitle Bahasa Indonesia
+* **Resolusi Full HD 1080p Native**: Menghadirkan streaming HLS berkualitas tinggi langsung ke Media3 ExoPlayer di TV dan ponsel.
+* **Manajemen Sesi Pemutaran Otomatis**: Gateway backend secara andal mengelola inisiasi sesi video dan meneruskan URL stream master playlist secara instan.
+* **Subtitle Bahasa Indonesia Bawaan**: Trek subtitle resmi `.vtt` bahasa Indonesia terdeteksi dan terpasang otomatis pada pemutar video.
+* **Dukungan Audio & Multi-Trek**: Kompatibel dengan berbagai format trek audio dan penyesuaian tampilan teks.
 
 ### 🔄 Sistem Auto-Update Otomatis (LAN + GitHub)
 * **Pemberitahuan Otomatis**: Setiap kali ada file APK versi baru di repositori Anda, aplikasi TV dan Mobile akan memunculkan pop-up notifikasi: *"Update Tersedia: Pasang Sekarang"*.
@@ -139,7 +139,7 @@ flowchart TD
 ### 📺 Fitur Android TV Client (`app-tv`)
 * **100% Native Leanback Architecture**: Bebas WebView. Menggunakan Media3 ExoPlayer dengan decoder hardware TV bawaan (`MediaCodec`) untuk playback tanpa stuttering.
 * **D-Pad Remote Friendly**: Desain antarmuka 10-foot yang responsif terhadap navigasi remote TV fisik.
-* **Token Query Preserving**: Menjamin token otorisasi CDN Majorplay (`?t=...`) tetap utuh pada segment chunk `.webp` / `.jpg` / `.js`.
+* **Token Query Preserving**: Menjamin token otorisasi CDN tetap utuh pada segment chunk video.
 * **Subtitle Manager & SubDL**: Pemilihan subtitle resmi atau pencarian manual subtitle alternatif via SubDL langsung dari remote TV.
 
 ### 📱 Fitur Android Mobile Client (`app-mobile`)
@@ -152,9 +152,9 @@ flowchart TD
 * **Picture-in-Picture (PiP)**: Otomatis masuk ke mode melayang (floating PiP) saat berpindah aplikasi.
 
 ### 💻 Backend API & Web Player Bawaan
-* **Live Dashboard**: Menampilkan status server, daftar IP jaringan lokal, dan status sesi IDLIX di `http://localhost:5376`.
+* **Live Dashboard**: Menampilkan status server, daftar IP jaringan lokal, dan status gateway di `http://localhost:5376`.
 * **Integrated Web Player**: Akses `http://localhost:5376/player` untuk menonton langsung dari browser laptop Anda.
-* **Resilience & Anti-Crash**: Dilengkapi *event handler* disconnect Chromium dan *error handling* 24/7.
+* **Resilience & Anti-Crash**: Arsitektur server yang tangguh dengan penanganan error 24/7.
 
 ---
 
@@ -204,9 +204,9 @@ IDLIX Player/
 │   │   └── README.md
 │   └── PANDUAN_INSTALL.txt              # Panduan instalasi cepat
 │
-├── Backend API/                         # Layanan proxy backend (Fastify TypeScript)
+├── Backend API/                         # Layanan media gateway backend (Fastify TypeScript)
 │   ├── src/
-│   │   ├── engine/                      # Stealth Engine Puppeteer & Auth IDLIX
+│   │   ├── engine/                      # Media Engine & Playback Resolver
 │   │   ├── routes/                      # REST Endpoints (/api/movies, /watch/..., /update/...)
 │   │   ├── services/                    # Cache & Live Web Dashboard
 │   │   └── server.ts                    # Entrypoint Server Fastify
@@ -270,8 +270,8 @@ Repositori ini telah dikonfigurasi dengan workflow CI/CD GitHub Actions (`.githu
 <p>
 
 1. Pastikan server backend di laptop sedang menyala melalui script `1-JALANKAN-SERVER.bat`.
-2. Pastikan file `Backend API/.env` di laptop Anda sudah berisi akun IDLIX yang valid agar verifikasi Cloudflare Turnstile dilewati.
-3. Pastikan aplikasi TV atau HP sudah menggunakan rilis terbaru (TV v1.0.6, Mobile v1.0.3) yang mendukung rute proxy redeem `/watch/session/redeem`.
+2. Pastikan file `.env` lokal di laptop sudah terisi dengan benar untuk menghubungkan layanan gateway backend.
+3. Pastikan aplikasi TV atau HP sudah menggunakan rilis terbaru (TV v1.0.6, Mobile v1.0.3) yang mendukung endpoint sesi pemutaran terbaru.
 </p>
 </details>
 
@@ -296,7 +296,7 @@ Bisa! Setelah menjalankan <code>1-JALANKAN-SERVER.bat</code>, buka browser lapto
 
 ## 🔒 Keamanan & Lisensi
 
-* **Privasi Kredensial**: Informasi sensitif seperti kredensial akun upstream dan file konfigurasi lokal (`.env`, `local.properties`, keystore) sepenuhnya dilindungi dan diabaikan oleh [`.gitignore`](.gitignore).
+* **Privasi Kredensial**: File konfigurasi lokal (`.env`, `local.properties`, keystore) sepenuhnya dilindungi dan diabaikan oleh [`.gitignore`](.gitignore).
 * **Pembuat & Pengembang**: [claudiaaulerie](https://github.com/claudiaaulerie)
 * **Repositori Resmi**: [https://github.com/claudiaaulerie/IDLIX-Player](https://github.com/claudiaaulerie/IDLIX-Player)
 * **Pemberitahuan Lisensi**: Proyek ini dikembangkan secara independen untuk tujuan riset arsitektur aplikasi native multi-platform Android dan streaming media HLS. Seluruh konten media merupakan hak cipta dari masing-masing penyedia layanan.

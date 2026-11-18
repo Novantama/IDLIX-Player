@@ -1,13 +1,13 @@
-# Idlix TV - Backend API Scraper & Proxy Service
+# IDLIX Player - Backend API Gateway & Media Proxy Service
 
-High-performance scraper, cache, and Cloudflare bypass API for **Idlix for TV**.
-By running this backend service, the Android TV app does not need any Android `WebView` or Chromium processes, running 100% native Kotlin with minimal memory footprint.
+High-performance media gateway and streaming proxy for **IDLIX Player** (Android TV & Android Mobile).
+By running this backend service, the Android apps run 100% native Kotlin with minimal memory footprint and hardware-accelerated ExoPlayer streaming.
 
 ## Fitur Utama
-1. **Cloudflare Evasion Server-Side**: Menggunakan stealth browser session untuk melewati Cloudflare Managed / Turnstile Challenge secara otomatis.
-2. **In-Memory Caching (LRU)**: Menyimpan cache film, serial, dan kategori di RAM (15-30 menit) sehingga respons ke Android TV instan (<15ms) dan menghemat bandwidth.
-3. **All-in-One Playback Resolver**: Menyediakan endpoint `/api/playback/resolve` yang menyelesaikan `gateToken`, countdown, claim session, dan redeem HLS playlist langsung ke master URL siap putar.
-4. **Ringan & Hemat RAM**: Image Docker dirancang khusus dengan pembatasan memori (<1GB) dan pemblokiran resource visual (gambar/media/iklan) agar sangat hemat di VPS 1-2GB RAM.
+1. **Media Gateway Service**: Mengelola katalog konten, metadata film, serial TV, dan sesi pemutaran HLS berkecepatan tinggi.
+2. **In-Memory Caching (LRU)**: Menyimpan cache data katalog di RAM (15-30 menit) sehingga respons ke Android TV & Mobile instan (<15ms) dan hemat bandwidth.
+3. **All-in-One Playback Resolver**: Menyediakan endpoint `/api/playback/resolve` yang menangani inisiasi sesi video dan mengembalikan URL playlist master HLS siap putar beserta subtitle Bahasa Indonesia.
+4. **Ringan & Hemat RAM**: Dirancang dengan konsumsi memori rendah (<1GB RAM) yang sangat efisien dijalankan di laptop lokal maupun server VPS.
 
 ---
 
@@ -46,11 +46,7 @@ By running this backend service, the Android TV app does not need any Android `W
    ```bash
    npm install
    ```
-3. Jalankan development server:
-   ```bash
-   npm run dev
-   ```
-4. Atau bangun untuk produksi:
+3. Bangun dan jalankan:
    ```bash
    npm run build
    npm start
@@ -59,7 +55,7 @@ By running this backend service, the Android TV app does not need any Android `W
 ---
 
 ## REST Endpoints Tersedia
-- `GET /health` : Status server dan sesi browser
+- `GET /health` : Status server dan sesi aktif
 - `GET /api/movies?page=1&limit=20&sort=popularity&genre=slug` : Daftar film
 - `GET /api/series?page=1&limit=20&sort=popularity&genre=slug` : Daftar serial TV
 - `GET /api/movies/:slug` : Detail film
@@ -67,7 +63,7 @@ By running this backend service, the Android TV app does not need any Android `W
 - `GET /api/series/:slug/season/:season/episode/:episode` : Detail episode
 - `GET /api/genres` : Daftar genre
 - `GET /api/search?q=:query` : Pencarian film/serial
-- `GET /api/watch/play-info/:contentType/:id` : Gate token provider
-- `POST /api/watch/session/claim` : Klaim sesi pemutaran
-- `POST /api/watch/redeem` : Redeem master playlist HLS
+- `GET /api/watch/play-info/:contentType/:id` : Info pemutaran media
+- `POST /api/watch/session/claim` : Inisiasi sesi pemutaran
+- `POST /watch/session/redeem` : Sesi playlist HLS
 - `GET /api/playback/resolve?contentType=:type&contentId=:id&contentTitle=:title` : Resolusi tuntas playlist video HLS & subtitle
