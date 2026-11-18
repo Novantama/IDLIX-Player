@@ -436,50 +436,6 @@ fun SubtitleModalBottomSheet(
                             }
                         }
                     }
-                } else if (subdlCandidates.isNotEmpty()) {
-                    // Candidate Picker View
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 420.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = stringResource(R.string.subdl_pick_title),
-                            color = TextWhite,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(subdlCandidates) { item ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(SurfaceVariantDark)
-                                        .clickable { onSelectCandidate(item) }
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = item.name.orEmpty(),
-                                            color = TextWhite,
-                                            fontWeight = FontWeight.Medium,
-                                            fontSize = 14.sp
-                                        )
-                                        Text(
-                                            text = "${item.type ?: "Film"} • ${item.year ?: ""}",
-                                            color = TextDim,
-                                            fontSize = 12.sp
-                                        )
-                                    }
-                                    Icon(Icons.Default.Check, contentDescription = null, tint = TextMuted)
-                                }
-                            }
-                        }
-                    }
                 } else {
                     // Standard Tracks View
                     Row(
@@ -765,22 +721,61 @@ fun SubtitleModalBottomSheet(
                                 }
                             }
                         } else if (filteredSubdl.isEmpty()) {
-                            item {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
+                            if (subdlCandidates.isNotEmpty() && subdlSubtitles.isEmpty()) {
+                                item {
                                     Text(
-                                        text = stringResource(R.string.no_subdl_found),
-                                        fontSize = 13.sp,
-                                        color = TextMuted
+                                        text = stringResource(R.string.subdl_pick_title),
+                                        color = TextWhite,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
                                     )
-                                    TextButton(onClick = onOpenManualSearch) {
-                                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = IdlixRed)
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(stringResource(R.string.subdl_type_title_btn), color = IdlixRed, fontSize = 12.sp)
+                                }
+                                items(subdlCandidates) { item ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(SurfaceVariantDark)
+                                            .clickable { onSelectCandidate(item) }
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = item.name.orEmpty(),
+                                                color = TextWhite,
+                                                fontWeight = FontWeight.Medium,
+                                                fontSize = 13.sp
+                                            )
+                                            Text(
+                                                text = "${item.type ?: "Film"} • ${item.year ?: ""}",
+                                                color = TextDim,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = TextMuted)
+                                    }
+                                }
+                            } else {
+                                item {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = stringResource(R.string.no_subdl_found),
+                                            fontSize = 13.sp,
+                                            color = TextMuted
+                                        )
+                                        TextButton(onClick = onOpenManualSearch) {
+                                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = IdlixRed)
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(stringResource(R.string.subdl_type_title_btn), color = IdlixRed, fontSize = 12.sp)
+                                        }
                                     }
                                 }
                             }
