@@ -193,7 +193,12 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   const handlePlayInfo = async (req: any, reply: any) => {
     const { contentType, id } = req.params;
     await engine.ensureAuthenticated();
-    const result = await engine.executeFetch(`/api/watch/play-info/${contentType}/${id}`);
+    let result = await engine.executeFetch(`/api/watch/play-info/${contentType}/${id}`);
+    if (result.status === 401 || result.status === 403) {
+      req.log.warn(`[API] Play-info returned ${result.status}, refreshing user session...`);
+      await engine.ensureAuthenticated(true);
+      result = await engine.executeFetch(`/api/watch/play-info/${contentType}/${id}`);
+    }
     return reply.status(result.status).send(result.data);
   };
   fastify.get('/api/watch/play-info/:contentType/:id', handlePlayInfo);
@@ -226,7 +231,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
     if (result.status === 403 || result.status === 401) {
       req.log.warn(`[API] Claim returned ${result.status}, re-authenticating...`);
-      await engine.ensureAuthenticated();
+      await engine.ensureAuthenticated(true);
       result = await engine.executeFetch('/api/watch/session/claim', {
         method: 'POST',
         body: { gateToken },
@@ -258,7 +263,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
     }
 
     const activeOrigin = engine.getSessionStatus().targetUrl || 'https://z2.idlixku.com';
-    const result = await engine.executeFetch(targetEndpoint, {
+    let result = await engine.executeFetch(targetEndpoint, {
       method: 'POST',
       body: { claim, mode },
       headers: {
@@ -266,6 +271,19 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
         Origin: activeOrigin,
       },
     });
+
+    if (result.status === 401 || result.status === 403) {
+      req.log.warn(`[API] Redeem returned ${result.status}, re-authenticating...`);
+      await engine.ensureAuthenticated(true);
+      result = await engine.executeFetch(targetEndpoint, {
+        method: 'POST',
+        body: { claim, mode },
+        headers: {
+          Referer: `${activeOrigin}/`,
+          Origin: activeOrigin,
+        },
+      });
+    }
 
     return reply.status(result.status).send(result.data);
   };

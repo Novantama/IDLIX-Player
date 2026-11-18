@@ -161,21 +161,24 @@ export class IdlixScraperEngine {
     };
   }
 
-  public async ensureAuthenticated(): Promise<boolean> {
-    if (this.isLoggedIn) {
+  public async ensureAuthenticated(force = false): Promise<boolean> {
+    if (this.isLoggedIn && !force) {
       return true;
     }
-    if (!this.authIdentifier || !this.authPassword) {
+    const ident = process.env.IDLIX_IDENTIFIER || this.authIdentifier;
+    const pass = process.env.IDLIX_PASSWORD || this.authPassword;
+    if (!ident || !pass) {
+      console.warn('[ScraperEngine] Missing IDLIX_IDENTIFIER or IDLIX_PASSWORD in environment config');
       return false;
     }
 
     try {
-      console.log(`[ScraperEngine] Authenticating with IDLIX user account (${this.authIdentifier})...`);
+      console.log(`[ScraperEngine] Authenticating with IDLIX user account (${ident})...`);
       const result = await this.executeFetch('/api/auth/login', {
         method: 'POST',
         body: {
-          identifier: this.authIdentifier,
-          password: this.authPassword,
+          identifier: ident,
+          password: pass,
           replaceExistingSessions: true,
         },
       });
@@ -186,10 +189,12 @@ export class IdlixScraperEngine {
         return true;
       } else {
         console.warn(`[ScraperEngine] Authentication response: status ${result.status}`, result.data);
+        this.isLoggedIn = false;
         return false;
       }
     } catch (err: any) {
       console.error(`[ScraperEngine] Authentication error: ${err?.message || err}`);
+      this.isLoggedIn = false;
       return false;
     }
   }
@@ -285,6 +290,15 @@ export class IdlixScraperEngine {
         this.page = null;
       }
 
+      // If upstream session is expired or revoked (401 Unauthorized), reset logged-in state
+      if (
+        result.status === 401 ||
+        (result.data && typeof result.data === 'object' && result.data.error?.includes('Access token required'))
+      ) {
+        console.warn(`[ScraperEngine] Upstream returned 401 Unauthorized for ${url}. Invalidating user session.`);
+        this.isLoggedIn = false;
+      }
+
       return { status: result.status, data: result.data };
     } catch (err: any) {
       console.warn(`[ScraperEngine] Request failed for ${url}: ${err?.message}`);
@@ -330,7 +344,12 @@ export class IdlixScraperEngine {
     }
 
     // Step 1: Get play-info (gateToken + countdown)
-    const playInfoRes = await this.executeFetch(`/api/watch/play-info/${targetType}/${targetId}`);
+    let playInfoRes = await this.executeFetch(`/api/watch/play-info/${targetType}/${targetId}`);
+    if (playInfoRes.status === 401 || playInfoRes.status === 403) {
+      console.warn(`[ScraperEngine] play-info returned ${playInfoRes.status}, re-authenticating...`);
+      await this.ensureAuthenticated(true);
+      playInfoRes = await this.executeFetch(`/api/watch/play-info/${targetType}/${targetId}`);
+    }
     const playInfo = playInfoRes.data;
     if (!playInfo?.gateToken) {
       throw new Error('Failed to obtain playback gate token from provider');
