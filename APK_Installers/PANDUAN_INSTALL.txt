@@ -1,0 +1,40 @@
+========================================================================
+            PANDUAN PEMILIHAN & INSTALASI FILE APK IDLIX
+========================================================================
+
+Folder ini berisi file installer APK untuk HP Android dan Android TV.
+
+------------------------------------------------------------------------
+1. UNTUK HP ANDROID (Folder: Mobile_HP)
+------------------------------------------------------------------------
+- Rekomendasi Utama:
+  `IDLIX-Mobile-Modified (Auto-Detect).apk`
+  Fitur: Dilengkapi tombol "Auto-Detect Server" di menu Settings.
+  Tinggal klik 1 tombol, otomatis mendeteksi server laptop di Wi-Fi.
+
+- Versi Standar:
+  `IDLIX-Mobile-Original.apk`
+  Versi build standar sebelum penambahan fitur Auto-Detect.
+
+------------------------------------------------------------------------
+2. UNTUK SMART TV / ANDROID TV / TV BOX (Folder: Android_TV)
+------------------------------------------------------------------------
+- Rekomendasi Utama:
+  `IDLIX-TV-Modified (Auto-Detect).apk`
+  Fitur: Desain antarmuka TV remote Leanback + tombol "Auto-Detect Server"
+  di menu Pengaturan TV.
+
+- Versi Standar:
+  `IDLIX-TV-Original.apk`
+  Versi build standar sebelum penambahan fitur Auto-Detect.
+
+------------------------------------------------------------------------
+3. CARA PENGGUNAAN CEPAT
+------------------------------------------------------------------------
+1. Nyalakan server backend di laptop lewat file:
+   `1-JALANKAN-SERVER.bat`
+2. Pastikan laptop dan HP/TV terhubung ke jaringan Wi-Fi yang sama.
+3. Buka aplikasi di HP/TV -> Buka menu Settings.
+4. Klik tombol "Auto-Detect Server".
+5. Selesai! Aplikasi langsung terhubung dan siap memutar film.
+========================================================================
