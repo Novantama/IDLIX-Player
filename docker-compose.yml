@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  idlix-api:
+    build:
+      context: ./Backend API
+      dockerfile: Dockerfile
+    container_name: idlix-backend-api
+    restart: unless-stopped
+    ports:
+      - "5376:5376"
+    env_file:
+      - path: .env
+        required: false
+      - path: ./Backend API/.env
+        required: false
+    environment:
+      - PORT=5376
+      - HOST=0.0.0.0
+      - IDLIX_BASE_URL=https://z2.idlixku.com
+      - LOG_LEVEL=info
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+        reservations:
+          memory: 256M
+    shm_size: '512mb'

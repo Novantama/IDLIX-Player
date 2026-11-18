@@ -55,10 +55,17 @@ export class IdlixScraperEngine {
         ];
 
         // Option A: puppeteer-real-browser with Xvfb virtual display on Linux VPS & SOCKS5 proxy
+        const customConfig: any = {};
+        const explicitChromePath = process.env.CHROME_PATH || process.env.PUPPETEER_EXECUTABLE_PATH;
+        if (explicitChromePath) {
+          customConfig.chromePath = explicitChromePath;
+        }
+
         const realBrowser = await (connect as any)({
           headless: false,
           turnstile: true,
           disableXvfb: process.platform !== 'linux',
+          customConfig,
           connectOption: {
             ignoreHTTPSErrors: true,
           },

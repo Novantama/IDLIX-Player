@@ -1,7 +1,22 @@
-# Base Node.js 22 Slim with official Debian packages
+# ==============================================================================
+# Stage 1: Build TypeScript Artifacts
+# ==============================================================================
+FROM node:22-slim AS builder
+
+WORKDIR /app
+
+COPY package*.json tsconfig.json ./
+RUN npm ci
+
+COPY src ./src
+RUN npm run build
+
+# ==============================================================================
+# Stage 2: Production Runtime with Chromium & Xvfb (Multi-Linux Support)
+# ==============================================================================
 FROM node:22-slim
 
-# Install latest Chromium and required dependencies for headless browser execution
+# Install system dependencies for Chromium and headless execution
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
       chromium \
@@ -42,23 +57,26 @@ RUN apt-get update \
       ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Tell Puppeteer to use the system installed Chromium
+# Universal browser environment variables
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
     PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
+    CHROME_PATH=/usr/bin/chromium \
+    CHROME_BIN=/usr/bin/chromium \
     NODE_ENV=production \
     PORT=5376 \
     HOST=0.0.0.0
 
 WORKDIR /app
 
-# Copy package descriptors first to leverage docker layer caching
+# Install production dependencies only
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-# Copy built files
-COPY dist ./dist
+# Copy compiled files from builder and static assets
+COPY --from=builder /app/dist ./dist
+COPY public ./public
 
-# Create a non-root user for security
+# Setup non-root sandbox user
 RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
     && mkdir -p /home/pptruser/Downloads \
     && chown -R pptruser:pptruser /home/pptruser \

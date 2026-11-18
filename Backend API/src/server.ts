@@ -82,16 +82,19 @@ async function main() {
     }
     console.log('======================================================\n');
 
-    // Automatically open live web dashboard in browser like KRX18
-    if (process.env.OPEN_BROWSER !== 'false') {
+    // Automatically open live web dashboard in browser when supported
+    const shouldOpenBrowser = process.env.OPEN_BROWSER === 'true' || 
+      (process.env.OPEN_BROWSER !== 'false' && process.env.NODE_ENV !== 'production');
+
+    if (shouldOpenBrowser) {
       const dashboardUrl = `http://localhost:${port}/`;
       try {
         if (process.platform === 'win32') {
-          exec(`start "" "${dashboardUrl}"`);
+          exec(`start "" "${dashboardUrl}"`, () => {});
         } else if (process.platform === 'darwin') {
-          exec(`open "${dashboardUrl}"`);
-        } else if (process.platform === 'linux') {
-          exec(`xdg-open "${dashboardUrl}"`);
+          exec(`open "${dashboardUrl}"`, () => {});
+        } else if (process.platform === 'linux' && (process.env.DISPLAY || process.env.WAYLAND_DISPLAY)) {
+          exec(`xdg-open "${dashboardUrl}"`, () => {});
         }
       } catch (_err) {}
     }

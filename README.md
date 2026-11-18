@@ -21,9 +21,9 @@
 
 ### 🚀 Tautan Cepat (Quick Links)
 
-| 📺 Android TV APK | 📱 Mobile HP APK | 💻 Web Dashboard | 📜 Panduan Instalasi |
-| :---: | :---: | :---: | :---: |
-| [**Download v1.0.6 TV**](APK_Installers/Android_TV/IDLIX-TV-Modified%20(Auto-Detect).apk) | [**Download v1.0.3 Mobile**](APK_Installers/Mobile_HP/IDLIX-Mobile-Modified%20(Auto-Detect).apk) | [**http://localhost:5376**](http://localhost:5376) | [**Buka Panduan Install**](APK_Installers/PANDUAN_INSTALL.txt) |
+| 📺 Android TV APK | 📱 Mobile HP APK | 💻 Web Dashboard | 🐧 Panduan Linux | 📜 Panduan TV |
+| :---: | :---: | :---: | :---: | :---: |
+| [**Download v1.0.6 TV**](APK_Installers/Android_TV/IDLIX-TV-Modified%20(Auto-Detect).apk) | [**Download v1.0.3 Mobile**](APK_Installers/Mobile_HP/IDLIX-Mobile-Modified%20(Auto-Detect).apk) | [**http://localhost:5376**](http://localhost:5376) | [**Buka Panduan Linux**](docs/PANDUAN_LINUX.md) | [**Panduan Pasang TV**](docs/PANDUAN_INSTALASI_TV.md) |
 
 ---
 
@@ -162,25 +162,35 @@ flowchart TD
 
 Ikuti 3 langkah mudah berikut untuk mulai menonton:
 
-### Langkah 1: Jalankan Server di Laptop / Komputer
-1. Buka folder proyek di laptop Anda.
-2. Klik dua kali file [`1-JALANKAN-SERVER.bat`](1-JALANKAN-SERVER.bat).
-3. Jendela server akan terbuka dan menampilkan status:
-   ```
-   ======================================================
-          IDLIX BACKEND API BERHASIL AKTIF
-   ======================================================
-    > Akses Laptop (Local) : http://localhost:5376
-    > Akses Android TV/HP  : http://192.168.1.163:5376
-   ======================================================
-   ```
+### Langkah 1: Jalankan Server di Laptop / Komputer / VPS
+Pilih salah satu metode sesuai sistem operasi Anda:
+
+* **🪟 Windows**:
+  1. Buka folder proyek di laptop Anda.
+  2. Klik dua kali file [`1-JALANKAN-SERVER.bat`](1-JALANKAN-SERVER.bat).
+* **🐧 Linux (Ubuntu, Debian, CentOS, Fedora, Arch, Raspberry Pi, VPS)**:
+  1. Pasang dependensi otomatis: `chmod +x install-linux.sh run-server.sh && ./install-linux.sh`
+  2. Jalankan server: `./run-server.sh`
+* **🐳 Docker (Universal Semua OS)**:
+  1. Jalankan langsung: `docker compose up -d`
+
+Jendela server akan terbuka dan menampilkan status:
+```
+======================================================
+       IDLIX BACKEND API BERHASIL AKTIF
+======================================================
+ > Akses Laptop (Local) : http://localhost:5376
+ > Akses Android TV/HP  : http://192.168.1.163:5376
+======================================================
+```
+*(Panduan lengkap Linux, Systemd Service 24/7, dan VPS tersedia di [docs/PANDUAN_LINUX.md](docs/PANDUAN_LINUX.md))*
 
 ### Langkah 2: Instal APK ke TV dan HP
 * **Android TV**: Salin [`IDLIX-TV-Modified (Auto-Detect).apk`](APK_Installers/Android_TV/IDLIX-TV-Modified%20(Auto-Detect).apk) ke flashdisk lalu instal di TV via File Manager, atau gunakan aplikasi *Send Files to TV*.
 * **HP Android**: Salin dan pasang [`IDLIX-Mobile-Modified (Auto-Detect).apk`](APK_Installers/Mobile_HP/IDLIX-Mobile-Modified%20(Auto-Detect).apk) langsung di smartphone Anda.
 
 ### Langkah 3: Hubungkan Aplikasi ke Server
-1. Pastikan TV / HP terhubung ke **jaringan Wi-Fi yang sama** dengan laptop.
+1. Pastikan TV / HP terhubung ke **jaringan Wi-Fi yang sama** dengan laptop/server (atau gunakan IP/domain VPS jika di cloud).
 2. Buka aplikasi IDLIX di TV atau HP Anda.
 3. Masuk ke menu **Settings (Pengaturan)** ⚙️ -> Klik tombol **"Auto-Detect Server"**.
 4. Status akan berubah menjadi **Connected** dan katalog film siap dinikmati!
@@ -193,7 +203,11 @@ Ikuti 3 langkah mudah berikut untuk mulai menonton:
 IDLIX Player/
 ├── 1-JALANKAN-SERVER.bat                # Script peluncur server backend (1-klik di Windows)
 ├── 2-UPDATE-VERSI-APK.bat               # Script rilis versi baru & notifikasi auto-update
+├── install-linux.sh                     # Script installer otomatis untuk semua distro Linux
+├── run-server.sh                        # Script peluncur server backend untuk Linux & VPS
+├── docker-compose.yml                   # Orkestrasinya Docker Container universal
 ├── releases.ini                         # Konfigurasi versi rilis dan tautan update
+├── .env.example                         # Template konfigurasi variabel lingkungan
 │
 ├── APK_Installers/                      # Paket installer APK siap pasang
 │   ├── Android_TV/                      # Installer khusus Android TV / Google TV
@@ -212,9 +226,17 @@ IDLIX Player/
 │   │   └── server.ts                    # Entrypoint Server Fastify
 │   ├── public/                          # Antarmuka Web Player bawaan
 │   ├── .env.example                     # Template konfigurasi publik
-│   ├── Dockerfile                       # Konfigurasi container Docker
+│   ├── Dockerfile                       # Multi-stage container image (Chromium + Xvfb)
 │   ├── docker-compose.yml
 │   └── package.json
+│
+├── tools/
+│   ├── idlix-backend.service            # Unit template systemd untuk auto-start di Linux VPS
+│   └── dev-backend.bat                  # Peluncur mode dev
+│
+├── docs/
+│   ├── PANDUAN_LINUX.md                 # Panduan komprehensif instalasi di berbagai distro Linux
+│   └── PANDUAN_INSTALASI_TV.md          # Panduan pasang APK di Android TV
 │
 ├── app-tv/                              # Modul aplikasi native Android TV (Jetpack Compose)
 │   ├── src/main/java/com/idlix/tv/      # UI Leanback, NavDrawer, TV Player & Settings
@@ -237,17 +259,24 @@ IDLIX Player/
 
 ## 🛠️ Panduan Build & Kompilasi
 
-### 1. Backend API (Manual)
-```bash
-cd "Backend API"
-npm install
-npm run build
-npm start
-```
-Atau menggunakan Docker:
-```bash
-docker compose up -d --build
-```
+### 1. Backend API (Linux & Windows)
+* **Instalasi Otomatis Linux**:
+  ```bash
+  chmod +x install-linux.sh && ./install-linux.sh
+  ./run-server.sh
+  ```
+* **Kompilasi Manual**:
+  ```bash
+  cd "Backend API"
+  npm install
+  npm run build
+  npm start
+  ```
+* **Menggunakan Docker (Universal)**:
+  ```bash
+  docker compose up -d --build
+  ```
+*(Baca panduan lengkap konfigurasi Linux & VPS di [`docs/PANDUAN_LINUX.md`](docs/PANDUAN_LINUX.md))*
 
 ### 2. Kompilasi APK Android via Gradle
 ```bash

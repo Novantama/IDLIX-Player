@@ -13,16 +13,20 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
   // Web Player Frontend (UI)
   const servePlayer = async (_req: any, reply: any) => {
-    const primaryPath = path.resolve(process.cwd(), 'public/index.html');
-    if (fs.existsSync(primaryPath)) {
-      const html = fs.readFileSync(primaryPath, 'utf-8');
-      return reply.type('text/html; charset=utf-8').send(html);
+    const candidatePaths = [
+      path.resolve(process.cwd(), 'public/index.html'),
+      path.resolve(process.cwd(), 'Backend API/public/index.html'),
+      path.resolve(__dirname, '../../public/index.html'),
+      path.resolve(__dirname, '../public/index.html'),
+    ];
+
+    for (const filePath of candidatePaths) {
+      if (fs.existsSync(filePath)) {
+        const html = fs.readFileSync(filePath, 'utf-8');
+        return reply.type('text/html; charset=utf-8').send(html);
+      }
     }
-    const fallbackPath = path.resolve(__dirname, '../../public/index.html');
-    if (fs.existsSync(fallbackPath)) {
-      const html = fs.readFileSync(fallbackPath, 'utf-8');
-      return reply.type('text/html; charset=utf-8').send(html);
-    }
+
     return reply.status(404).send({ error: 'Web player index.html not found' });
   };
 

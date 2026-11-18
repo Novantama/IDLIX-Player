@@ -1,0 +1,48 @@
+# ==============================================================================
+# IDLIX Backend API - Systemd Service Unit
+# ==============================================================================
+# CARA PEMASANGAN DI VPS / LINUX SERVER:
+# 1. Sesuaikan 'WorkingDirectory' dan 'ExecStart' di bawah jika direktori berbeda.
+# 2. Salin file ini ke direktori systemd:
+#    sudo cp tools/idlix-backend.service /etc/systemd/system/idlix-backend.service
+# 3. Muat ulang daemon systemd:
+#    sudo systemctl daemon-reload
+# 4. Aktifkan dan jalankan service:
+#    sudo systemctl enable --now idlix-backend
+# 5. Periksa status server:
+#    sudo systemctl status idlix-backend
+# 6. Memeriksa log server secara real-time:
+#    sudo journalctl -u idlix-backend -f
+# ==============================================================================
+
+[Unit]
+Description=IDLIX Backend Media Gateway & Streaming API Server
+After=network.target
+
+[Service]
+Type=simple
+# Sesuaikan WorkingDirectory dengan path repositori di server Anda
+WorkingDirectory=/opt/IDLIX/Backend API
+ExecStart=/usr/bin/node dist/server.js
+Restart=always
+RestartSec=5
+KillMode=process
+
+# Lingkungan runtime produksi
+Environment=NODE_ENV=production
+Environment=PORT=5376
+Environment=HOST=0.0.0.0
+Environment=LOG_LEVEL=info
+
+# Logging systemd journal
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=idlix-backend
+
+# Batasan resource opsional untuk stabilitas server (VPS)
+LimitNOFILE=65535
+MemoryHigh=900M
+MemoryMax=1200M
+
+[Install]
+WantedBy=multi-user.target

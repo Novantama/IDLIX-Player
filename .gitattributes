@@ -1,0 +1,11 @@
+# Set default behavior to automatically normalize line endings
+* text=auto
+
+# Bash scripts and system files must always use LF
+*.sh text eol=lf
+*.service text eol=lf
+Dockerfile* text eol=lf
+
+# Windows batch files must use CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
