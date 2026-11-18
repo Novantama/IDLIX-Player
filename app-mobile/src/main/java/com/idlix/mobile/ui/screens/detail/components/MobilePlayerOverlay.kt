@@ -3,6 +3,7 @@ package com.idlix.mobile.ui.screens.detail.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.ClosedCaptionDisabled
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
@@ -44,6 +46,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -61,6 +64,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.idlix.data.model.SubtitleTrack
 import com.idlix.mobile.R
 import com.idlix.mobile.ui.screens.detail.NextEpisodeInfo
 import com.idlix.mobile.ui.theme.IdlixRed
@@ -77,6 +81,7 @@ fun MobilePlayerOverlay(
     durationMs: Long,
     isFullscreen: Boolean,
     isSubtitleEnabled: Boolean,
+    selectedSubtitle: SubtitleTrack? = null,
     nextEpisode: NextEpisodeInfo?,
     isNextEpisodeDismissed: Boolean,
     brightnessIndicator: Float?, // 0f..1f or null if not dragging
@@ -292,17 +297,60 @@ fun MobilePlayerOverlay(
                             fontWeight = FontWeight.Medium
                         )
 
-                        // Bottom-right Fullscreen Expand/Exit button
-                        IconButton(
-                            onClick = onToggleFullscreen,
-                            modifier = Modifier.size(36.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                imageVector = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
-                                contentDescription = if (isFullscreen) stringResource(R.string.exit_fullscreen) else stringResource(R.string.fullscreen),
-                                tint = Color.White,
-                                modifier = Modifier.size(22.dp)
-                            )
+                            // Quick Subtitle Button (Sub: ID, Sub: EN, Sub: OFF)
+                            Surface(
+                                color = if (isSubtitleEnabled) IdlixRed.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.1f),
+                                border = if (isSubtitleEnabled) BorderStroke(1.dp, IdlixRed) else null,
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .clickable {
+                                        onOpenSubtitlePicker()
+                                        onUserInteraction()
+                                    }
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isSubtitleEnabled) Icons.Default.ClosedCaption else Icons.Default.ClosedCaptionDisabled,
+                                        contentDescription = stringResource(R.string.subtitles),
+                                        tint = if (isSubtitleEnabled) IdlixRed else Color.White.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    val currentLangBadge = if (!isSubtitleEnabled) {
+                                        "OFF"
+                                    } else {
+                                        val l = selectedSubtitle?.lang?.lowercase()
+                                        if (l == "id" || l == "in") "ID" else if (l == "en") "EN" else "ON"
+                                    }
+                                    Text(
+                                        text = "Sub: $currentLangBadge",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            // Bottom-right Fullscreen Expand/Exit button
+                            IconButton(
+                                onClick = onToggleFullscreen,
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isFullscreen) Icons.Default.FullscreenExit else Icons.Default.Fullscreen,
+                                    contentDescription = if (isFullscreen) stringResource(R.string.exit_fullscreen) else stringResource(R.string.fullscreen),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         }
                     }
                 }

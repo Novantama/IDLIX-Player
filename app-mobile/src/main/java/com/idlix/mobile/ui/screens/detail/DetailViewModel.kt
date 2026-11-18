@@ -357,6 +357,11 @@ class DetailViewModel(
                     selectedSubtitle = defaultSub,
                     isSubtitleEnabled = defaultSub != null
                 )
+
+                // Pre-cache SubDL subtitles in background so both Indonesian and English are ready instantly
+                if (_uiState.value.subdlSubtitles.isEmpty() && !_uiState.value.isSearchingSubdl) {
+                    searchSubdlSubtitles()
+                }
             }.onFailure { err ->
                 _uiState.value = _uiState.value.copy(
                     isStreamLoading = false,
@@ -681,6 +686,77 @@ class DetailViewModel(
             isSubtitleEnabled = track != null,
             isSubtitlePickerVisible = false
         )
+    }
+
+    fun selectPreferredLanguage(targetLang: String) {
+        if (targetLang.equals("off", ignoreCase = true)) {
+            selectSubtitleTrack(null)
+            return
+        }
+
+        val langCode = if (targetLang.equals("id", ignoreCase = true)) "id" else "en"
+        val currentSubs = _uiState.value.resolvedStream?.subtitles.orEmpty()
+
+        // 1. Check if track for this language is already present in resolvedStream.subtitles
+        val existingTrack = currentSubs.firstOrNull {
+            if (langCode == "id") {
+                it.lang.equals("id", ignoreCase = true) || it.lang.equals("in", ignoreCase = true)
+            } else {
+                it.lang.equals("en", ignoreCase = true)
+            }
+        }
+
+        if (existingTrack != null) {
+            selectSubtitleTrack(existingTrack)
+            return
+        }
+
+        // 2. Check if subdlSubtitles already loaded has a matching subtitle
+        val existingSubdl = _uiState.value.subdlSubtitles.firstOrNull {
+            if (langCode == "id") {
+                it.language.equals("ID", ignoreCase = true) || it.lang.equals("indonesian", ignoreCase = true)
+            } else {
+                it.language.equals("EN", ignoreCase = true) || it.lang.equals("english", ignoreCase = true)
+            }
+        }
+
+        if (existingSubdl != null) {
+            selectSubdlSubtitle(existingSubdl) {}
+            return
+        }
+
+        // 3. Not yet downloaded: fetch from SubDL in background for this specific language
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isSearchingSubdl = true)
+            val ctx = getApplication<Application>().applicationContext
+            val downloaded = SubdlRepository.fetchSubtitleForLanguage(
+                title = currentContentTitle,
+                type = if (currentContentType == "episode") "tv" else "movie",
+                season = currentSeasonNumber,
+                episode = currentEpisodeNumber,
+                targetLang = langCode,
+                context = ctx
+            )
+            _uiState.value = _uiState.value.copy(isSearchingSubdl = false)
+
+            if (downloaded != null) {
+                val currentStream = _uiState.value.resolvedStream
+                if (currentStream != null) {
+                    val updatedSubs = currentStream.subtitles.toMutableList()
+                    updatedSubs.removeAll { it.path == downloaded.path }
+                    updatedSubs.add(0, downloaded)
+                    _uiState.value = _uiState.value.copy(
+                        resolvedStream = currentStream.copy(subtitles = updatedSubs),
+                        selectedSubtitle = downloaded,
+                        isSubtitleEnabled = true,
+                        isSubtitlePickerVisible = false
+                    )
+                }
+            } else {
+                // If direct auto-download didn't return a match, open the modal sheet so the user can pick/search
+                openSubtitlePicker()
+            }
+        }
     }
 
     fun selectSubdlSubtitle(

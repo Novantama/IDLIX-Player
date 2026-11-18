@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
@@ -375,6 +376,68 @@ fun DetailScreen(
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
+                            Spacer(modifier = Modifier.height(10.dp))
+                        }
+
+                        // Quick Subtitle Info & Language Selector
+                        item {
+                            Surface(
+                                color = Color.White.copy(alpha = 0.05f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { viewModel.openSubtitlePicker() }
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.ClosedCaption,
+                                            contentDescription = null,
+                                            tint = if (uiState.isSubtitleEnabled) IdlixRed else TextMuted,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text(
+                                                text = stringResource(R.string.subtitle_language),
+                                                color = TextWhite,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            val currentSubName = if (!uiState.isSubtitleEnabled) {
+                                                stringResource(R.string.subtitle_off)
+                                            } else {
+                                                val l = uiState.selectedSubtitle?.lang?.lowercase()
+                                                if (l in listOf("id", "in")) {
+                                                    "🇮🇩 " + stringResource(R.string.indonesian_subtitle)
+                                                } else if (l == "en") {
+                                                    "🇬🇧 " + stringResource(R.string.english_subtitle)
+                                                } else {
+                                                    uiState.selectedSubtitle?.label ?: stringResource(R.string.subtitle_on)
+                                                }
+                                            }
+                                            Text(
+                                                text = currentSubName,
+                                                color = if (uiState.isSubtitleEnabled) IdlixRed else TextMuted,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = stringResource(R.string.change_subtitle),
+                                        color = IdlixRed,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                             Spacer(modifier = Modifier.height(14.dp))
                         }
 
@@ -623,6 +686,7 @@ fun DetailScreen(
             isUsingSessionOverride = uiState.isUsingSessionOverride,
             isSeries = uiState.series != null,
             onToggleSubtitle = { viewModel.toggleSubtitle() },
+            onSelectLanguage = { viewModel.selectPreferredLanguage(it) },
             onSelectTrack = { viewModel.selectSubtitleTrack(it) },
             onSelectSubdl = { viewModel.selectSubdlSubtitle(it) {} },
             onSearchSubdl = { viewModel.searchSubdlSubtitles() },

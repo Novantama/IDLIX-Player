@@ -38,6 +38,15 @@
     <string name="episode_badge">Ep %d</string>
     <string name="subtitles">Subtitles</string>
     <string name="indonesian">Indonesian</string>
+    <string name="english">English</string>
+    <string name="primary_subtitle_languages">Pilihan Bahasa Utama</string>
+    <string name="indonesian_subtitle">Bahasa Indonesia</string>
+    <string name="english_subtitle">English</string>
+    <string name="active_now">Sedang Aktif</string>
+    <string name="click_to_select">Pilih</string>
+    <string name="subtitle_lang_all">Semua</string>
+    <string name="subtitle_language">Subtitle Bahasa</string>
+    <string name="change_subtitle">Ganti →</string>
     <string name="audio">Audio</string>
     <string name="skip_intro">Skip Intro</string>
     <string name="next_episode">Next Episode</string>

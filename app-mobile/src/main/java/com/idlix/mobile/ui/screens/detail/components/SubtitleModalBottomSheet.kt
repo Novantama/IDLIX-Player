@@ -1,5 +1,6 @@
 package com.idlix.mobile.ui.screens.detail.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -122,6 +123,7 @@ fun SubtitleModalBottomSheet(
     isUsingSessionOverride: Boolean = false,
     isSeries: Boolean = false,
     onToggleSubtitle: () -> Unit,
+    onSelectLanguage: ((String) -> Unit)? = null,
     onSelectTrack: (SubtitleTrack?) -> Unit,
     onSelectSubdl: (SubdlSubtitle) -> Unit,
     onSearchSubdl: () -> Unit,
@@ -142,6 +144,7 @@ fun SubtitleModalBottomSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selectedTab by remember { mutableIntStateOf(0) }
     var activePicker by remember { mutableStateOf(ModalActivePicker.NONE) }
+    var selectedLangFilter by remember { mutableStateOf("ALL") }
 
     val appearance by PlayerAppearanceStore.appearance.collectAsState()
     val recentColors by PlayerAppearanceStore.recentCustomColors.collectAsState()
@@ -419,39 +422,141 @@ fun SubtitleModalBottomSheet(
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 380.dp),
+                            .heightIn(max = 420.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        // 1. Primary Language Selection Section (Pilihan Bahasa Utama)
+                        item {
+                            Text(
+                                text = stringResource(R.string.primary_subtitle_languages).uppercase(),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDim,
+                                letterSpacing = 0.5.sp,
+                                modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val isIndoSelected = isSubtitleEnabled && (selectedSubtitle?.lang?.lowercase() in listOf("id", "in"))
+                                val isEnglishSelected = isSubtitleEnabled && (selectedSubtitle?.lang?.lowercase() == "en")
+
+                                // Indonesian Option Button
+                                LanguageCardButton(
+                                    flag = "🇮🇩",
+                                    languageName = stringResource(R.string.indonesian_subtitle),
+                                    description = if (isIndoSelected) stringResource(R.string.active_now) else stringResource(R.string.click_to_select),
+                                    isSelected = isIndoSelected,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onSelectLanguage?.invoke("id") }
+                                )
+
+                                // English Option Button
+                                LanguageCardButton(
+                                    flag = "🇬🇧",
+                                    languageName = stringResource(R.string.english_subtitle),
+                                    description = if (isEnglishSelected) stringResource(R.string.active_now) else stringResource(R.string.click_to_select),
+                                    isSelected = isEnglishSelected,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onSelectLanguage?.invoke("en") }
+                                )
+                            }
+                        }
+
                         // Off Option
                         item {
                             val isOffSelected = !isSubtitleEnabled || selectedSubtitle == null
                             SubtitleOptionItem(
                                 title = stringResource(R.string.subtitles_off),
                                 subtitle = null,
+                                badge = null,
                                 isSelected = isOffSelected,
                                 onClick = { onSelectTrack(null) }
                             )
                         }
 
+                        // Language Filter Chips
+                        item {
+                            val idSubCount = availableSubtitles.count { it.lang.equals("id", true) || it.lang.equals("in", true) } +
+                                    subdlSubtitles.count { it.language.equals("ID", true) || it.lang.equals("indonesian", true) }
+                            val enSubCount = availableSubtitles.count { it.lang.equals("en", true) } +
+                                    subdlSubtitles.count { it.language.equals("EN", true) || it.lang.equals("english", true) }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 10.dp, bottom = 2.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                FilterChip(
+                                    selected = selectedLangFilter == "ALL",
+                                    onClick = { selectedLangFilter = "ALL" },
+                                    label = { Text("${stringResource(R.string.subtitle_lang_all)} (${availableSubtitles.size + subdlSubtitles.size})", fontSize = 12.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = IdlixRed,
+                                        selectedLabelColor = Color.White,
+                                        containerColor = SurfaceVariantDark,
+                                        labelColor = TextSecondary
+                                    )
+                                )
+
+                                FilterChip(
+                                    selected = selectedLangFilter == "ID",
+                                    onClick = { selectedLangFilter = "ID" },
+                                    label = { Text("🇮🇩 Indonesia ($idSubCount)", fontSize = 12.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = IdlixRed,
+                                        selectedLabelColor = Color.White,
+                                        containerColor = SurfaceVariantDark,
+                                        labelColor = TextSecondary
+                                    )
+                                )
+
+                                FilterChip(
+                                    selected = selectedLangFilter == "EN",
+                                    onClick = { selectedLangFilter = "EN" },
+                                    label = { Text("🇬🇧 English ($enSubCount)", fontSize = 12.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0xFF2196F3),
+                                        selectedLabelColor = Color.White,
+                                        containerColor = SurfaceVariantDark,
+                                        labelColor = TextSecondary
+                                    )
+                                )
+                            }
+                        }
+
                         // Embedded Subtitles
-                        if (availableSubtitles.isNotEmpty()) {
+                        val filteredAvailable = availableSubtitles.filter { track ->
+                            when (selectedLangFilter) {
+                                "ID" -> track.lang.equals("id", true) || track.lang.equals("in", true)
+                                "EN" -> track.lang.equals("en", true)
+                                else -> true
+                            }
+                        }
+
+                        if (filteredAvailable.isNotEmpty()) {
                             item {
                                 Text(
                                     text = stringResource(R.string.default_subtitle),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = TextSecondary,
-                                    modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+                                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                                 )
                             }
 
-                            items(availableSubtitles) { track ->
+                            items(filteredAvailable) { track ->
                                 val isSelected = isSubtitleEnabled && selectedSubtitle?.path == track.path
+                                val isIndo = track.lang.equals("id", true) || track.lang.equals("in", true)
+                                val badgeText = if (isIndo) "ID" else track.lang.uppercase()
                                 SubtitleOptionItem(
                                     title = track.label.ifBlank {
-                                        if (track.lang.equals("id", ignoreCase = true)) stringResource(R.string.indonesian) else track.lang.uppercase()
+                                        if (isIndo) stringResource(R.string.indonesian) else track.lang.uppercase()
                                     },
-                                    subtitle = if (track.lang.equals("id", ignoreCase = true)) stringResource(R.string.indonesian) else track.lang,
+                                    subtitle = if (isIndo) stringResource(R.string.indonesian) else track.lang,
+                                    badge = badgeText,
                                     isSelected = isSelected,
                                     onClick = { onSelectTrack(track) }
                                 )
@@ -459,6 +564,16 @@ fun SubtitleModalBottomSheet(
                         }
 
                         // SubDL Subtitles Section
+                        val filteredSubdl = subdlSubtitles.filter { subdl ->
+                            val isIndo = subdl.language.equals("ID", true) || subdl.lang.equals("indonesian", true)
+                            val isEng = subdl.language.equals("EN", true) || subdl.lang.equals("english", true)
+                            when (selectedLangFilter) {
+                                "ID" -> isIndo
+                                "EN" -> isEng
+                                else -> true
+                            }
+                        }
+
                         item {
                             Row(
                                 modifier = Modifier
@@ -559,7 +674,7 @@ fun SubtitleModalBottomSheet(
                                     Text(text = errorMsg, color = IdlixRed, fontSize = 12.sp, modifier = Modifier.weight(1f))
                                 }
                             }
-                        } else if (subdlSubtitles.isEmpty()) {
+                        } else if (filteredSubdl.isEmpty()) {
                             item {
                                 Column(
                                     modifier = Modifier
@@ -580,15 +695,17 @@ fun SubtitleModalBottomSheet(
                                 }
                             }
                         } else {
-                            items(subdlSubtitles) { subdl ->
+                            items(filteredSubdl) { subdl ->
                                 val subRelease = subdl.releaseName?.ifBlank { subdl.name.orEmpty() } ?: subdl.name.orEmpty().ifBlank { "Subtitle" }
                                 val isSelected = isSubtitleEnabled && selectedSubtitle?.label == subRelease
-                                val subLang = subdl.language ?: subdl.lang ?: "ID"
+                                val isIndo = subdl.language.equals("ID", true) || subdl.lang.equals("indonesian", true)
+                                val subLang = if (isIndo) "ID" else (subdl.language ?: subdl.lang ?: "EN").uppercase()
                                 val subAuthor = subdl.author?.ifBlank { "SubDL" } ?: "SubDL"
 
                                 SubtitleOptionItem(
                                     title = subRelease,
                                     subtitle = "$subLang • $subAuthor",
+                                    badge = subLang,
                                     isSelected = isSelected,
                                     showDownloadIcon = !isSelected,
                                     onClick = { onSelectSubdl(subdl) }
@@ -827,6 +944,7 @@ private fun SubtitleOptionItem(
     title: String,
     subtitle: String?,
     isSelected: Boolean,
+    badge: String? = null,
     showDownloadIcon: Boolean = false,
     onClick: () -> Unit
 ) {
@@ -840,23 +958,49 @@ private fun SubtitleOptionItem(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                fontSize = 14.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) TextWhite else TextSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (!subtitle.isNullOrBlank()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
+            if (!badge.isNullOrBlank()) {
+                val badgeBg = when (badge.uppercase()) {
+                    "ID" -> IdlixRed
+                    "EN" -> Color(0xFF2196F3)
+                    else -> Color.White.copy(alpha = 0.2f)
+                }
+                Box(
+                    modifier = Modifier
+                        .background(badgeBg, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = badge.uppercase(),
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = subtitle,
-                    fontSize = 11.sp,
-                    color = TextMuted,
+                    text = title,
+                    fontSize = 14.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isSelected) TextWhite else TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (!subtitle.isNullOrBlank()) {
+                    Text(
+                        text = subtitle,
+                        fontSize = 11.sp,
+                        color = TextMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
 
@@ -881,6 +1025,57 @@ private fun SubtitleOptionItem(
                 tint = TextSecondary,
                 modifier = Modifier.size(18.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun LanguageCardButton(
+    flag: String,
+    languageName: String,
+    description: String,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Surface(
+        color = if (isSelected) IdlixRed.copy(alpha = 0.2f) else SurfaceVariantDark,
+        shape = RoundedCornerShape(10.dp),
+        border = if (isSelected) BorderStroke(1.5.dp, IdlixRed) else null,
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = flag, fontSize = 18.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(
+                        text = languageName,
+                        color = TextWhite,
+                        fontSize = 13.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
+                    )
+                    Text(
+                        text = description,
+                        color = if (isSelected) IdlixRed else TextDim,
+                        fontSize = 10.sp
+                    )
+                }
+            }
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    tint = IdlixRed,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
         }
     }
 }

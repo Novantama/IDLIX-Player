@@ -461,6 +461,7 @@ fun MobilePlayerView(
                     durationMs = durationMs,
                     isFullscreen = isFullscreen,
                     isSubtitleEnabled = isSubtitleEnabled,
+                    selectedSubtitle = selectedSubtitle,
                     nextEpisode = nextEpisode,
                     isNextEpisodeDismissed = isNextEpisodeDismissed,
                     brightnessIndicator = brightnessIndicator,
