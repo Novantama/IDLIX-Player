@@ -6,13 +6,10 @@ Folder ini berisi paket instalasi APK khusus perangkat layar sentuh (**Smartphon
 
 ### 📂 File yang Tersedia
 
-1. **`IDLIX-Mobile-Modified (Auto-Detect).apk`** ⭐ **(Sangat Direkomendasikan)**
-   - **Ukuran**: ~23.1 MB
-   - **Fitur Khusus**: Dilengkapi tombol **"Auto-Detect Server"** di menu Settings. Memudahkan HP mendeteksi IP backend laptop secara otomatis tanpa perlu mengetik manual.
-   
-2. **`IDLIX-Mobile-Original.apk`**
-   - **Ukuran**: ~4.4 MB
-   - **Keterangan**: Versi build standar tanpa tombol Auto-Detect (memerlukan pengetikan URL manual).
+* **`IDLIX-Mobile-Modified (Auto-Detect).apk`** ⭐ **(Versi v1.0.3)**
+  - **Ukuran**: ~23.1 MB
+  - **Fitur Khusus**: Dilengkapi tombol **"Auto-Detect Server"** di menu Settings. Memudahkan HP mendeteksi IP backend laptop secara otomatis tanpa perlu mengetik manual.
+  - **Material 3 & Dual-Mode Player**: Tampilan antarmuka modern dengan transisi mulus dari pemutar inline 16:9 ke layar penuh landscape, navigasi swipe gestures, dan Picture-in-Picture (PiP).
 
 ---
 

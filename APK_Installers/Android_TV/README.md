@@ -6,13 +6,10 @@ Folder ini berisi paket instalasi APK khusus perangkat layar lebar (**Android TV
 
 ### 📂 File yang Tersedia
 
-1. **`IDLIX-TV-Modified (Auto-Detect).apk`** ⭐ **(Sangat Direkomendasikan)**
-   - **Ukuran**: ~22.1 MB
-   - **Fitur Khusus**: Dilengkapi tombol **"Auto-Detect Server"** di menu Pengaturan TV. Cukup tekan 1 tombol pada remote TV, aplikasi akan secara otomatis memindai dan menghubungkan TV ke server backend laptop Anda di jaringan Wi-Fi lokal.
-   
-2. **`IDLIX-TV-Original.apk`**
-   - **Ukuran**: ~4.1 MB
-   - **Keterangan**: Versi build standar tanpa tombol Auto-Detect (memerlukan pengetikan URL backend secara manual via keyboard layar remote).
+* **`IDLIX-TV-Modified (Auto-Detect).apk`** ⭐ **(Versi v1.0.6)**
+  - **Ukuran**: ~22.1 MB
+  - **Fitur Khusus**: Dilengkapi tombol **"Auto-Detect Server"** di menu Pengaturan TV. Cukup tekan 1 tombol pada remote TV, aplikasi akan secara otomatis memindai dan menghubungkan TV ke server backend laptop Anda di jaringan Wi-Fi lokal.
+  - **ExoPlayer Hardware Acceleration**: Pemutaran video HLS native 1080p dengan audio surround dan subtitle Bahasa Indonesia.
 
 ---
 

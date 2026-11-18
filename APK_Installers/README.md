@@ -8,14 +8,12 @@ Folder ini menyediakan paket installer APK siap pasang untuk **Android TV / Goog
 
 ```
 APK_Installers/
-├── Android_TV/                                    # Untuk Smart TV, Android TV Box & Google TV
-│   ├── IDLIX-TV-Modified (Auto-Detect).apk        # ⭐ Rekomendasi: Dilengkapi Auto-Detect Server (22.1 MB)
-│   ├── IDLIX-TV-Original.apk                      # Versi build standar (4.1 MB)
+├── Android_TV/
+│   ├── IDLIX-TV-Modified (Auto-Detect).apk        # ⭐ Rilis TV v1.0.6: Auto-Detect Server & Leanback UI (~22.1 MB)
 │   └── README.md                                  # Panduan khusus instalasi Android TV
 │
-├── Mobile_HP/                                     # Untuk Smartphone & Tablet Android
-│   ├── IDLIX-Mobile-Modified (Auto-Detect).apk    # ⭐ Rekomendasi: Dilengkapi Auto-Detect Server (23.1 MB)
-│   ├── IDLIX-Mobile-Original.apk                  # Versi build standar (4.4 MB)
+├── Mobile_HP/
+│   ├── IDLIX-Mobile-Modified (Auto-Detect).apk    # ⭐ Rilis Mobile v1.0.3: Auto-Detect Server, Gestures & PiP (~23.1 MB)
 │   └── README.md                                  # Panduan khusus instalasi Mobile
 │
 ├── PANDUAN_INSTALL.txt                            # Catatan teks petunjuk instalasi cepat
@@ -24,19 +22,12 @@ APK_Installers/
 
 ---
 
-### ⚖️ Perbandingan Versi APK
+### 📋 Ringkasan Versi Rilis
 
-| Fitur | Versi Modified ⭐ (Rekomendasi) | Versi Original |
-| :--- | :---: | :---: |
-| **Auto-Detect Server** | ✅ **Ada** (1-Klik Deteksi Wi-Fi) | ❌ Manual Ketik URL |
-| **Tampilan UI Leanback TV** | ✅ Ya | ✅ Ya |
-| **Material 3 UI Mobile** | ✅ Ya | ✅ Ya |
-| **ExoPlayer HLS Streaming** | ✅ Ya | ✅ Ya |
-| **SubDL Subtitle Integration**| ✅ Ya | ✅ Ya |
-| **Picture-in-Picture (PiP)** | ✅ Ya | ✅ Ya |
-| **Ukuran File** | ~22 MB - 23 MB | ~4.1 MB - 4.4 MB |
-
-> 💡 **Saran Pemilihan**: Gunakan file **`Modified (Auto-Detect)`** agar Anda tidak perlu repot mengetik alamat IP laptop secara manual menggunakan remote TV atau keyboard ponsel.
+| Platform | Versi | File APK | Ukuran | Fitur Utama |
+| :--- | :---: | :--- | :---: | :--- |
+| 📺 **Android TV / Google TV** | **v1.0.6** | [`IDLIX-TV-Modified (Auto-Detect).apk`](Android_TV/IDLIX-TV-Modified%20(Auto-Detect).apk) | ~22.1 MB | Leanback 10-foot UI, D-Pad Remote, Auto-Detect Server, Hardware Acceleration ExoPlayer |
+| 📱 **Android Mobile (HP/Tablet)** | **v1.0.3** | [`IDLIX-Mobile-Modified (Auto-Detect).apk`](Mobile_HP/IDLIX-Mobile-Modified%20(Auto-Detect).apk) | ~23.1 MB | Material 3, Edge-to-Edge, Inline & Fullscreen Player, Swipe Gestures, PiP |
 
 ---
 

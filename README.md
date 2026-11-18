@@ -1,215 +1,243 @@
-# IDLIX Player: Android TV & Android Mobile 🎬📺📱
+# 🎬 IDLIX Player: Android TV & Android Mobile
 
-[![Repository](https://img.shields.io/badge/GitHub-claudiaaulerie%2FIDLIX--Player-blue?logo=github)](https://github.com/claudiaaulerie/IDLIX-Player)
-[![Platform](https://img.shields.io/badge/Platform-Android%20TV%20%7C%20Android%20Mobile-green?logo=android)](https://github.com/claudiaaulerie/IDLIX-Player)
-[![Architecture](https://img.shields.io/badge/Architecture-Multi--Module%20Clean%20Kotlin-brightgreen)](https://github.com/claudiaaulerie/IDLIX-Player)
-[![Backend](https://img.shields.io/badge/Backend-Fastify%20TypeScript%20%2B%20Stealth-orange)](https://github.com/claudiaaulerie/IDLIX-Player)
+<p align="center">
+  <img src="app-tv/src/main/res/drawable/idlix_logo.png" alt="IDLIX Player Logo" width="160" />
+</p>
 
----
+<p align="center">
+  <strong>Aplikasi Streaming Native Modern untuk Android TV & Android Mobile</strong><br>
+  Didukung oleh Backend Proxy Stealth, Bypass Cloudflare Turnstile, dan Auto-Update Hybrid.
+</p>
 
-### 📑 Daftar Isi
-* [Tentang Proyek](#tentang-proyek)
-* [Fitur Utama (Key Features)](#fitur-utama)
-  * [Fitur Unggulan Baru (New Features)](#fitur-unggulan-baru)
-  * [Android Mobile Client (`app-mobile`)](#fitur-mobile)
-  * [Android TV Client (`app-tv`)](#fitur-tv)
-  * [Backend API & Web Player Service](#fitur-backend)
-* [Struktur Direktori (Project Structure)](#struktur-direktori)
-* [Download Installer APK](#download-apk)
-* [Panduan Penggunaan Cepat](#panduan-cepat)
-* [Panduan Kompilasi & Build APK](#panduan-build)
-* [Frequently Asked Questions (FAQ)](#faq)
-* [Keamanan, Lisensi & Pembuat](#keamanan-lisensi)
+<p align="center">
+  <a href="https://github.com/claudiaaulerie/IDLIX-Player"><img src="https://img.shields.io/badge/GitHub-claudiaaulerie%2FIDLIX--Player-blue?style=for-the-badge&logo=github" alt="GitHub Repository" /></a>
+  <a href="https://github.com/claudiaaulerie/IDLIX-Player/releases"><img src="https://img.shields.io/badge/Platform-Android%20TV%20%7C%20Mobile-brightgreen?style=for-the-badge&logo=android" alt="Platforms" /></a>
+  <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.0%20Compose-purple?style=for-the-badge&logo=kotlin" alt="Kotlin" /></a>
+  <a href="https://fastify.dev"><img src="https://img.shields.io/badge/Backend-Fastify%20TypeScript-orange?style=for-the-badge&logo=fastify" alt="Fastify Backend" /></a>
+  <a href="https://github.com/claudiaaulerie/IDLIX-Player/actions"><img src="https://img.shields.io/badge/CI%2FCD-GitHub%20Actions%20JDK%2021-success?style=for-the-badge&logo=githubactions" alt="Build APKs" /></a>
+</p>
 
 ---
 
-<a id="tentang-proyek"></a>
+### 🚀 Tautan Cepat (Quick Links)
+
+| 📺 Android TV APK | 📱 Mobile HP APK | 💻 Web Dashboard | 📜 Panduan Instalasi |
+| :---: | :---: | :---: | :---: |
+| [**Download v1.0.6 TV**](APK_Installers/Android_TV/IDLIX-TV-Modified%20(Auto-Detect).apk) | [**Download v1.0.3 Mobile**](APK_Installers/Mobile_HP/IDLIX-Mobile-Modified%20(Auto-Detect).apk) | [**http://localhost:5376**](http://localhost:5376) | [**Buka Panduan Install**](APK_Installers/PANDUAN_INSTALL.txt) |
+
+---
+
+## 📑 Daftar Isi
+- [💡 Tentang Proyek](#-tentang-proyek)
+- [📦 Status Rilis & Download APK](#-status-rilis--download-apk)
+- [🏗️ Arsitektur Sistem](#️-arsitektur-sistem)
+- [🌟 Fitur-Fitur Utama](#-fitur-fitur-utama)
+  - [🛡️ Bypass Cloudflare Turnstile & Playback 1080p](#-bypass-cloudflare-turnstile--playback-1080p)
+  - [🔄 Sistem Auto-Update Otomatis (LAN + GitHub)](#-sistem-auto-update-otomatis-lan--github)
+  - [🔍 1-Click Auto-Detect Server](#-1-click-auto-detect-server)
+  - [📺 Fitur Android TV Client (`app-tv`)](#-fitur-android-tv-client-app-tv)
+  - [📱 Fitur Android Mobile Client (`app-mobile`)](#-fitur-android-mobile-client-app-mobile)
+  - [💻 Backend API & Web Player Bawaan](#-backend-api--web-player-bawaan)
+- [🚀 Panduan Penggunaan Cepat](#-panduan-penggunaan-cepat)
+- [📁 Struktur Direktori](#-struktur-direktori)
+- [🛠️ Panduan Build & Kompilasi](#️-panduan-build--kompilasi)
+- [❓ FAQ & Troubleshooting](#-faq--troubleshooting)
+- [🔒 Keamanan & Lisensi](#-keamanan--lisensi)
+
+---
+
 ## 💡 Tentang Proyek
 
-**IDLIX Player** adalah platform streaming native Android modern berkinerja tinggi untuk film dan serial TV dari IDLIX. Mendukung ekosistem layar ganda (**Android TV / Google TV** dan **Android Mobile Smartphone/Tablet**) yang dibangun menggunakan arsitektur **Clean Multi-Module Kotlin & Jetpack Compose**.
+**IDLIX Player** adalah aplikasi streaming film dan serial TV *native* Android berkinerja tinggi yang dibangun untuk dua jenis layar utama:
+1. **Android TV / Google TV**: Antarmuka 10-foot Leanback yang dioptimalkan untuk navigasi remote D-Pad, pemutaran video HLS hardware-accelerated (`MediaCodec`), dan billboard dinamis.
+2. **Android Smartphone & Tablet**: Antarmuka responsif Material 3 dengan kontrol sentuh cerdas (*swipe gestures*, *double-tap seek*), mode pemutar ganda (*inline-to-fullscreen*), dan *Picture-in-Picture (PiP)*.
 
-Proyek ini terbagi menjadi modul-modul independen yang terstruktur:
-1. **Shared Core Data (`core/data/`)**: Modul pustaka Kotlin murni tanpa dependensi UI yang mengelola Retrofit client, model data, deserializer toleran, repository, penyimpanan riwayat tontonan lokal (`WatchHistoryStore`), serta utilitas *Auto-Detect Subnet Scanner*.
-2. **Android TV Client (`app-tv/`)**: Aplikasi khusus Android TV/Google TV berbasis Jetpack Compose for TV (`androidx.tv.material3`) dan Media3 ExoPlayer dengan antarmuka Leanback (remote D-Pad navigation, 10-foot UI, fixed landscape).
-3. **Android Mobile Client (`app-mobile/`)**: Aplikasi khusus smartphone & tablet berbasis Jetpack Compose **Material 3** modern (Bottom Navigation Bar, Swipeable Banner Pager, Inline-to-Fullscreen Player, Touch Gestures, dan **Picture-in-Picture**).
-4. **Backend API Scraper & Web Player (`Backend API/`)**: Service Fastify TypeScript dengan headless stealth browser untuk bypass Cloudflare Turnstile, pelacakan redirect domain dinamis, scraping katalog, resolusi one-shot token HLS stream, dan antarmuka **Web Player bawaan**.
+Kedua aplikasi didukung oleh **Backend API Scraper & Proxy** berbasis Node.js Fastify TypeScript yang berjalan di laptop/komputer lokal untuk menembus proteksi Cloudflare Turnstile upstream, mengelola countdown provider, dan meneruskan *HLS master playlist* serta subtitle Bahasa Indonesia langsung ke aplikasi Android.
 
 ---
 
-<a id="fitur-utama"></a>
-## 🌟 Fitur Utama (Key Features)
+## 📦 Status Rilis & Download APK
 
-<a id="fitur-unggulan-baru"></a>
-### ✨ Fitur Unggulan Terbaru
-* 🔍 **Auto-Detect Server (1-Click Discovery)**:
-  * Tombol **"Auto-Detect Server"** di menu Pengaturan aplikasi Android TV dan Mobile.
-  * Memindai subnet Wi-Fi lokal secara paralel (`1..254`) pada port `5376` (`/health`) dan langsung mengisi serta menyimpan alamat IP backend laptop/server secara otomatis.
-* 🌐 **Built-in Web Player UI**:
-  * Backend API kini dilengkapi web player modern yang dapat diakses langsung dari browser di laptop/PC (`http://localhost:5376` atau `http://localhost:5376/player`).
-* 🔄 **Dynamic Domain Redirection Follower**:
-  * Engine backend secara otomatis mendeteksi dan mengikuti perubahan domain upstream IDLIX (misal migrasi `z2.idlixku.com` ke `z3.idlixku.com`) tanpa memerlukan update manual pada kode.
-* 🪟 **Silent Stealth Engine**:
-  * Puppeteer browser berjalan di posisi off-screen sehingga tidak ada popup jendela browser yang mengganggu saat server aktif.
-* 🚀 **1-Click Windows Launcher (`1-JALANKAN-SERVER.bat`)**:
-  * Script praktis yang otomatis mendeteksi alamat IP lokal laptop/PC dan menampilkan petunjuk URL akses ke TV/HP.
+Semua paket installer APK siap pasang telah tersedia langsung di direktori [`APK_Installers/`](APK_Installers/):
 
-<a id="fitur-mobile"></a>
-### 📱 Android Mobile Client (`app-mobile`)
-* **Material 3 & Edge-to-Edge Display**:
-  * Tampilan immersive modern dengan handling `WindowInsets` bebas dari benturan notch / punch-hole kamera.
-  * Navigasi intuitif **Bottom Navigation Bar** 5 tab: *Home*, *Movies*, *Series*, *Search*, dan *Library*.
-* **Hero Carousel & Infinite Scrolling**:
-  * Pager banner horizontal otomatis (`HorizontalPager`) dengan indikator titik dinamis dan tombol aksi cepat.
-  * Barisan *Lanjutkan Menonton* (Continue Watching) dengan thumbnail 16:9 dan progress bar tontonan.
-  * Grid vertikal 3 kolom (smartphone) dan 5 kolom (tablet) dengan infinite scroll pagination dan filter chips genre/sorting.
-* **Dual-Mode Player (Inline ke Fullscreen)**:
-  * **Mode Inline (Portrait 16:9)**: Video langsung berputar di atas layar sambil membaca sinopsis dan memilih episode serial di bawahnya.
-  * **Mode Fullscreen (Landscape)**: Transisi mulus ke layar penuh immersive melalui tombol expand atau sensor rotasi.
-  * **BackHandler Cerdas**: Menekan tombol Back saat fullscreen akan mengecilkan player kembali ke mode inline.
-* **Touch Gestures & Media Controls**:
-  * **Double-Tap**: Sisi kiri mundur 10 detik, sisi kanan maju 10 detik disertai animasi ripple.
-  * **Vertical Drag**: Sisi kiri untuk kecerahan layar, sisi kanan untuk volume audio.
-  * **Timeline Scrubber**: Scrub horizontal presisi untuk loncat ke menit tertentu.
-* **Picture-in-Picture (PiP)**:
-  * Otomatis masuk ke mode floating PiP saat pengguna menekan tombol Home atau beralih ke aplikasi lain (`onUserLeaveHint`).
-* **Integrasi Subtitle SubDL**:
-  * Pemilihan trek subtitle bawaan atau pencarian subtitle Bahasa Indonesia/Inggris via SubDL API.
+| Platform | Versi | File APK | Ukuran | Status |
+| :--- | :---: | :--- | :---: | :---: |
+| 📺 **Android TV / Google TV** | **v1.0.6** | [`IDLIX-TV-Modified (Auto-Detect).apk`](APK_Installers/Android_TV/IDLIX-TV-Modified%20(Auto-Detect).apk) | ~22.1 MB | ![Status](https://img.shields.io/badge/Release-Active-success) |
+| 📱 **Android Mobile (HP/Tablet)** | **v1.0.3** | [`IDLIX-Mobile-Modified (Auto-Detect).apk`](APK_Installers/Mobile_HP/IDLIX-Mobile-Modified%20(Auto-Detect).apk) | ~23.1 MB | ![Status](https://img.shields.io/badge/Release-Active-success) |
+| ⚡ **Backend API Server** | **v1.0.1** | [`Backend API/`](Backend%20API/) | - | ![Status](https://img.shields.io/badge/Service-Ready-blue) |
 
-<a id="fitur-tv"></a>
-### 📺 Android TV Client (`app-tv`)
-* **100% Native Architecture**: Bebas Chromium dan WebView di dalam APK. Menggunakan hardware decoder bawaan TV (`MediaCodec`) via AndroidX Media3 ExoPlayer.
-* **Leanback 10-Foot UI**:
-  * Floating navigation sidebar dengan smooth overlay (tanpa re-layout konten).
-  * Billboard Hero dinamis dengan preview sinopsis dan tombol Putar Cepat.
-  * Baris Swimlane horizontal untuk Tren, Populer, Serial TV, dan Kategori Genre.
-  * Fitur *Lanjutkan Menonton* (Continue Watching) dengan bar progress visual.
-* **Token Query Preserving HLS Player**:
-  * Mengatasi proteksi CDN Majorplay (Cloudflare token authorization `?t=...`) secara otomatis pada sub-playlist dan chunk segmen video (`.webp`, `.jpg`, `.js`, dll.).
-  * Buffer kontrol TV adaptif untuk pemutaran instan tanpa buffering.
-* **Manajemen Subtitle & Integrasi SubDL**:
-  * Subtitle internal IDLIX otomatis (Indonesian & English).
-  * Pencarian dan pengunduhan subtitle alternatif langsung dari player menggunakan remote TV.
-* **Menu Pengaturan Terintegrasi**:
-  * Fitur **Auto-Detect Server** atau input manual URL Backend API dengan remote D-pad.
-  * Pengaturan custom API Key SubDL & tombol Uji Koneksi real-time.
-
-<a id="fitur-backend"></a>
-### 🚀 Backend API & Web Player Service
-* **Cloudflare Turnstile & Challenge Bypass**: Stealth engine otomatis menyelesaikan proteksi Cloudflare di sisi server.
-* **In-Memory LRU Caching**: Respons data instan (<15ms) untuk katalog film, serial, dan kategori.
-* **All-in-One Playback Resolver**: Endpoint `/api/playback/resolve` menyelesaikan siklus `gateToken`, countdown timer provider (15 detik), session claim, dan HLS URL redemption dalam satu panggilan.
-* **Ringan & Hemat Resource**: Mendukung Docker dengan konsumsi memori rendah (<1GB RAM).
+> 💡 **Unduh Langsung dari HP / TV**: Anda juga dapat mengunduh installer APK langsung melalui tautan raw GitHub pada file [`releases.ini`](releases.ini).
 
 ---
 
-<a id="struktur-direktori"></a>
-## 📁 Struktur Direktori (Project Structure)
+## 🏗️ Arsitektur Sistem
 
-Proyek ini telah diklasifikasikan dengan rapi ke dalam folder-folder terstruktur:
+Berikut diagram alur kerja komunikasi antara aplikasi klien, backend proxy lokal, dan server IDLIX / CDN:
+
+```mermaid
+flowchart TD
+    subgraph ClientDevices ["Perangkat Klien"]
+        TV["📺 Android TV (app-tv)<br>ExoPlayer + Leanback"]
+        Mobile["📱 Android Mobile (app-mobile)<br>ExoPlayer + Material 3"]
+    end
+
+    subgraph LocalBackend ["Laptop / Komputer Lokal (Port 5376)"]
+        Server["⚡ Fastify TypeScript Backend<br>(1-JALANKAN-SERVER.bat)"]
+        Stealth["🕵️ Chromium Stealth Engine<br>(Puppeteer Real Browser)"]
+        Cache["💾 In-Memory LRU Cache"]
+        EnvConfig["🔒 .env Private Auth Config"]
+    end
+
+    subgraph UpstreamProviders ["Layanan Eksternal"]
+        IDLIX["🌐 IDLIX Upstream Web Server<br>(Turnstile Challenge Gate)"]
+        CDN["🎬 Majorplay CDN Server<br>(HLS Video Stream & .vtt Subtitles)"]
+        SubDL["💬 SubDL Subtitle API<br>(Subtitle Indonesia Eksternal)"]
+    end
+
+    TV -->|"1. Auto-Detect Server (Port 5376)"| Server
+    Mobile -->|"1. Auto-Detect Server (Port 5376)"| Server
+
+    Server <--> Cache
+    Server <--> EnvConfig
+    Server <--> Stealth
+
+    Stealth -->|"2. Bypass Cloudflare & Auto-Login"| IDLIX
+    Stealth -->|"3. Sync Countdown & Claim Session"| IDLIX
+    Stealth -->|"4. Redeem Play URL"| IDLIX
+    
+    Server -->|"5. Return HLS Master URL + Subtitle"| TV
+    Server -->|"5. Return HLS Master URL + Subtitle"| Mobile
+
+    TV -.->|"Direct Streaming"| CDN
+    Mobile -.->|"Direct Streaming"| CDN
+    TV -.->|"Optional Subtitle Search"| SubDL
+    Mobile -.->|"Optional Subtitle Search"| SubDL
+```
+
+---
+
+## 🌟 Fitur-Fitur Utama
+
+### 🛡️ Bypass Cloudflare Turnstile & Playback 1080p
+* **Auto-Login IDLIX**: IDLIX secara resmi menonaktifkan Cloudflare Turnstile untuk sesi yang terautentikasi (`playerVerifySignIn`). Backend secara otomatis melakukan login di sesi browser stealth lokal menggunakan kredensial privat Anda.
+* **Bebas Error 403**: Mengeliminasi kegagalan `403 VERIFICATION_REQUIRED` pada endpoint sesi playback.
+* **Sinkronisasi Countdown Otomatis**: Backend secara pintar menyinkronkan hitung mundur provider (15 detik *"Choosing the best server..."*), mengklaim token sesi, dan me-redeem playlist master HLS 1080p Native.
+* **Subtitle Bahasa Indonesia Otomatis**: Trek subtitle resmi `.vtt` bahasa Indonesia diekstrak dan langsung dipasangkan pada ExoPlayer.
+
+### 🔄 Sistem Auto-Update Otomatis (LAN + GitHub)
+* **Pemberitahuan Otomatis**: Setiap kali ada file APK versi baru di repositori Anda, aplikasi TV dan Mobile akan memunculkan pop-up notifikasi: *"Update Tersedia: Pasang Sekarang"*.
+* **Dual-Path Downloader**:
+  1. **Jalur Cepat (LAN Wi-Fi)**: Jika server laptop menyala, APK diunduh langsung dari server lokal (`/api/update/apk/:platform`) dengan kecepatan penuh jaringan lokal.
+  2. **Jalur Cloud (GitHub Raw)**: Jika di luar jangkauan server lokal, aplikasi otomatis mengunduh APK dari GitHub resmi Anda.
+* **1-Click Version Bumping ([`2-UPDATE-VERSI-APK.bat`](2-UPDATE-VERSI-APK.bat))**:
+  Cukup jalankan script ini di Windows untuk menaikkan versi, memperbarui [`releases.ini`](releases.ini), dan mem-push rilis baru ke GitHub sekaligus.
+
+### 🔍 1-Click Auto-Detect Server
+* Di menu **Settings (Pengaturan)** aplikasi Android TV maupun Mobile, cukup tekan tombol **"Auto-Detect Server"**.
+* Aplikasi akan memindai subnet Wi-Fi lokal Anda secara paralel (`192.168.x.1..254` pada port `5376`) dan langsung menghubungkan aplikasi ke backend laptop Anda secara otomatis tanpa perlu mengetik alamat IP secara manual!
+
+### 📺 Fitur Android TV Client (`app-tv`)
+* **100% Native Leanback Architecture**: Bebas WebView. Menggunakan Media3 ExoPlayer dengan decoder hardware TV bawaan (`MediaCodec`) untuk playback tanpa stuttering.
+* **D-Pad Remote Friendly**: Desain antarmuka 10-foot yang responsif terhadap navigasi remote TV fisik.
+* **Token Query Preserving**: Menjamin token otorisasi CDN Majorplay (`?t=...`) tetap utuh pada segment chunk `.webp` / `.jpg` / `.js`.
+* **Subtitle Manager & SubDL**: Pemilihan subtitle resmi atau pencarian manual subtitle alternatif via SubDL langsung dari remote TV.
+
+### 📱 Fitur Android Mobile Client (`app-mobile`)
+* **Material 3 & Edge-to-Edge**: Tampilan modern tanpa benturan notch / kamera punch-hole.
+* **Dual-Mode Player**: Tontonan inline 16:9 yang mulus di bagian atas saat membaca sinopsis, atau beralih ke Fullscreen Landscape dengan satu ketukan.
+* **Kontrol Sentuh Intuitif**:
+  * *Double-Tap Kiri/Kanan*: Mundur / Maju 10 detik.
+  * *Vertical Drag Kiri*: Atur kecerahan layar.
+  * *Vertical Drag Kanan*: Atur volume audio.
+* **Picture-in-Picture (PiP)**: Otomatis masuk ke mode melayang (floating PiP) saat berpindah aplikasi.
+
+### 💻 Backend API & Web Player Bawaan
+* **Live Dashboard**: Menampilkan status server, daftar IP jaringan lokal, dan status sesi IDLIX di `http://localhost:5376`.
+* **Integrated Web Player**: Akses `http://localhost:5376/player` untuk menonton langsung dari browser laptop Anda.
+* **Resilience & Anti-Crash**: Dilengkapi *event handler* disconnect Chromium dan *error handling* 24/7.
+
+---
+
+## 🚀 Panduan Penggunaan Cepat
+
+Ikuti 3 langkah mudah berikut untuk mulai menonton:
+
+### Langkah 1: Jalankan Server di Laptop / Komputer
+1. Buka folder proyek di laptop Anda.
+2. Klik dua kali file [`1-JALANKAN-SERVER.bat`](1-JALANKAN-SERVER.bat).
+3. Jendela server akan terbuka dan menampilkan status:
+   ```
+   ======================================================
+          IDLIX BACKEND API BERHASIL AKTIF
+   ======================================================
+    > Akses Laptop (Local) : http://localhost:5376
+    > Akses Android TV/HP  : http://192.168.1.163:5376
+   ======================================================
+   ```
+
+### Langkah 2: Instal APK ke TV dan HP
+* **Android TV**: Salin [`IDLIX-TV-Modified (Auto-Detect).apk`](APK_Installers/Android_TV/IDLIX-TV-Modified%20(Auto-Detect).apk) ke flashdisk lalu instal di TV via File Manager, atau gunakan aplikasi *Send Files to TV*.
+* **HP Android**: Salin dan pasang [`IDLIX-Mobile-Modified (Auto-Detect).apk`](APK_Installers/Mobile_HP/IDLIX-Mobile-Modified%20(Auto-Detect).apk) langsung di smartphone Anda.
+
+### Langkah 3: Hubungkan Aplikasi ke Server
+1. Pastikan TV / HP terhubung ke **jaringan Wi-Fi yang sama** dengan laptop.
+2. Buka aplikasi IDLIX di TV atau HP Anda.
+3. Masuk ke menu **Settings (Pengaturan)** ⚙️ -> Klik tombol **"Auto-Detect Server"**.
+4. Status akan berubah menjadi **Connected** dan katalog film siap dinikmati!
+
+---
+
+## 📁 Struktur Direktori
 
 ```
 IDLIX Player/
-├── 1-JALANKAN-SERVER.bat                # Script cepat 1-klik menjalankan Backend Server (Windows)
-├── releases.ini                         # Konfigurasi update versi aplikasi
+├── 1-JALANKAN-SERVER.bat                # Script peluncur server backend (1-klik di Windows)
+├── 2-UPDATE-VERSI-APK.bat               # Script rilis versi baru & notifikasi auto-update
+├── releases.ini                         # Konfigurasi versi rilis dan tautan update
 │
-├── APK_Installers/                      # [Koleksi Installer APK Siap Pasang]
-│   ├── Mobile_HP/
-│   │   ├── IDLIX-Mobile-Modified (Auto-Detect).apk    # APK HP dengan fitur Auto-Detect Server (Rekomendasi)
-│   │   └── IDLIX-Mobile-Original.apk                  # APK HP versi build standar
-│   ├── Android_TV/
-│   │   ├── IDLIX-TV-Modified (Auto-Detect).apk        # APK TV dengan fitur Auto-Detect Server (Rekomendasi)
-│   │   └── IDLIX-TV-Original.apk                      # APK TV versi build standar
-│   └── PANDUAN_INSTALL.txt              # Petunjuk lengkap pemilihan & instalasi file APK
+├── APK_Installers/                      # Paket installer APK siap pasang
+│   ├── Android_TV/                      # Installer khusus Android TV / Google TV
+│   │   ├── IDLIX-TV-Modified (Auto-Detect).apk
+│   │   └── README.md
+│   ├── Mobile_HP/                       # Installer khusus Smartphone & Tablet
+│   │   ├── IDLIX-Mobile-Modified (Auto-Detect).apk
+│   │   └── README.md
+│   └── PANDUAN_INSTALL.txt              # Panduan instalasi cepat
 │
-├── Backend API/                         # Service Backend Scraper, Proxy & Web Player (Node.js/Fastify)
+├── Backend API/                         # Layanan proxy backend (Fastify TypeScript)
 │   ├── src/
-│   │   ├── engine/                      # Stealth Browser Engine & Dynamic Domain Redirection
-│   │   ├── routes/                      # REST endpoints Fastify (/api/...)
-│   │   └── services/                    # LRU Cache Service
-│   ├── public/                          # Antarmuka Web Player bawaan (HTML5/HLS.js)
-│   ├── Dockerfile
+│   │   ├── engine/                      # Stealth Engine Puppeteer & Auth IDLIX
+│   │   ├── routes/                      # REST Endpoints (/api/movies, /watch/..., /update/...)
+│   │   ├── services/                    # Cache & Live Web Dashboard
+│   │   └── server.ts                    # Entrypoint Server Fastify
+│   ├── public/                          # Antarmuka Web Player bawaan
+│   ├── .env.example                     # Template konfigurasi publik
+│   ├── Dockerfile                       # Konfigurasi container Docker
 │   ├── docker-compose.yml
 │   └── package.json
 │
+├── app-tv/                              # Modul aplikasi native Android TV (Jetpack Compose)
+│   ├── src/main/java/com/idlix/tv/      # UI Leanback, NavDrawer, TV Player & Settings
+│   └── build.gradle.kts
+│
+├── app-mobile/                          # Modul aplikasi native Android Mobile (Material 3)
+│   ├── src/main/java/com/idlix/mobile/  # UI Material 3, Gestures, PiP, Dual-Mode Player
+│   └── build.gradle.kts
+│
 ├── core/
-│   ├── data/                            # [Shared Library] Model, Retrofit API, Subnet Scanner & DB
-│   │   ├── src/main/java/com/idlix/data/
-│   │   │   ├── api/                     # ApiClient (Universal & Auto-Detect Scanner), IdlixApiService
-│   │   │   ├── local/                   # WatchHistoryStore (riwayat tontonan lokal)
-│   │   │   ├── model/                   # MovieItem, SeriesItem, Subdl, Serializers
-│   │   │   ├── update/                  # AppUpdateManager & ReleaseIniParser
-│   │   │   └── repository/              # IdlixRepository & SubdlRepository
-│   │   └── build.gradle.kts
-│   └── player-ui/                       # [Shared UI Library] Subtitle Overlay, Cue Repositioner & Safe Bounds
-│       └── build.gradle.kts
+│   ├── data/                            # Shared Library: Retrofit API, Subnet Scanner, Database
+│   └── player-ui/                       # Shared UI: Subtitle overlay & repositioner
 │
-├── tools/                               # [Developer Tools] Script pendukung pengembang (dev mode)
-│   └── dev-backend.bat
-│
-├── app-tv/                              # [Application] Modul Khusus Android TV / Google TV
-│   ├── src/main/java/com/idlix/tv/
-│   │   ├── ui/
-│   │   │   ├── components/              # TvNavDrawer, TvMovieCard, TvHeroBillboard, dll.
-│   │   │   ├── navigation/              # TV NavHost & routes
-│   │   │   ├── screens/                 # Home, Movies, Series, Detail, Player, Settings (Auto-Detect)
-│   │   │   └── theme/                   # Leanback Dark Theme
-│   │   └── res/                         # Asset TV banner & strings localization
-│   └── build.gradle.kts
-│
-├── app-mobile/                          # [Application] Modul Khusus Smartphone & Tablet
-│   ├── src/main/java/com/idlix/mobile/
-│   │   ├── ui/
-│   │   │   ├── components/              # MobileMovieCard, HeroBannerPager, FilterChips, dll.
-│   │   │   ├── navigation/              # Bottom Navigation Bar, NavHost, MainScaffold
-│   │   │   ├── screens/                 # Home, Movies, Series, Search, Library, Detail, Settings
-│   │   │   └── theme/                   # Material 3 Dark Theme & Edge-to-Edge styling
-│   │   └── res/                         # Asset mobile & strings
-│   └── build.gradle.kts
-│
-├── docs/                                # [Dokumentasi Lengkap]
-│   ├── PANDUAN_INSTALASI_TV.md          # Panduan instalasi ke Android TV via Flashdisk / ADB
-│   └── PORTING_TO_MOBILE_PLAN.md        # Rencana arsitektur multi-module & dokumentasi teknis
-│
-├── gradle/                              # Gradle wrapper & version catalogs (libs.versions.toml)
-├── build.gradle.kts
-├── settings.gradle.kts
-└── gradle.properties
+├── .github/workflows/
+│   └── build-apk.yml                    # CI/CD otomatis kompilasi APK cloud (JDK 21)
+└── settings.gradle.kts
 ```
 
 ---
 
-<a id="download-apk"></a>
-## 📥 Download Installer APK
+## 🛠️ Panduan Build & Kompilasi
 
-Installer APK yang telah dikompilasi tersedia langsung di:
-1. **Folder Lokal Proyek**: Masuk ke folder [`APK_Installers/`](APK_Installers/)
-   - Smartphone / Tablet: [`APK_Installers/Mobile_HP/`](APK_Installers/Mobile_HP/)
-   - Smart TV / TV Box: [`APK_Installers/Android_TV/`](APK_Installers/Android_TV/)
-2. **GitHub Releases**: Kunjungi halaman [Releases GitHub](https://github.com/claudiaaulerie/IDLIX-Player/releases).
-
----
-
-<a id="panduan-cepat"></a>
-## 🚀 Panduan Penggunaan Cepat
-
-1. **Jalankan Backend API di Laptop/PC**:
-   - Cukup klik dua kali file [`1-JALANKAN-SERVER.bat`](1-JALANKAN-SERVER.bat).
-   - Server akan aktif dan menampilkan alamat IP lokal Anda (misalnya `http://192.168.1.163:5376`).
-2. **Pastikan Terhubung ke Wi-Fi yang Sama**:
-   - Hubungkan HP Android / Android TV ke jaringan Wi-Fi yang sama dengan Laptop.
-3. **Buka Aplikasi IDLIX**:
-   - Masuk ke menu **Settings (Pengaturan)** ⚙️.
-   - Tekan tombol **"Auto-Detect Server"**.
-   - Aplikasi otomatis menemukan laptop Anda dan status berubah menjadi **Connected**.
-4. **Selesai**: Jelajahi katalog dan nikmati streaming film serta serial favorit!
-
----
-
-<a id="panduan-build"></a>
-## 🛠️ Panduan Kompilasi & Build APK (Build Guide)
-
-### 1. Menjalankan Backend API Secara Manual
-
+### 1. Backend API (Manual)
 ```bash
 cd "Backend API"
 npm install
@@ -218,61 +246,57 @@ npm start
 ```
 Atau menggunakan Docker:
 ```bash
-cd "Backend API"
 docker compose up -d --build
 ```
-Uji koneksi server:
-```bash
-curl http://localhost:5376/health
-```
 
-### 2. Membangun APK Android TV (`app-tv`)
-
+### 2. Kompilasi APK Android via Gradle
 ```bash
-# Debug APK
+# Build Android TV APK
 ./gradlew :app-tv:assembleDebug
-# Output: app-tv/build/outputs/apk/debug/app-tv-debug.apk
 
-# Release APK
-./gradlew :app-tv:assembleRelease
-# Output: app-tv/build/outputs/apk/release/app-tv-release.apk
-```
-
-### 3. Membangun APK Android Mobile (`app-mobile`)
-
-```bash
-# Debug APK
+# Build Android Mobile APK
 ./gradlew :app-mobile:assembleDebug
-# Output: app-mobile/build/outputs/apk/debug/app-mobile-debug.apk
-
-# Release APK
-./gradlew :app-mobile:assembleRelease
-# Output: app-mobile/build/outputs/apk/release/app-mobile-release.apk
 ```
 
-### 4. Build Otomatis via GitHub Actions
-Repositori ini telah dilengkapi dengan workflow CI/CD GitHub Actions (`.github/workflows/build-apk.yml`) yang menggunakan JDK 21. Cukup buka tab **Actions** di repositori GitHub Anda dan jalankan **Build IDLIX Android APKs** untuk mengunduh APK hasil kompilasi cloud kapan saja.
+### 3. Kompilasi Otomatis via GitHub Actions
+Repositori ini telah dikonfigurasi dengan workflow CI/CD GitHub Actions (`.github/workflows/build-apk.yml`) berbasis **Ubuntu & JDK 21 Temurin**. Setiap kali ada perubahan kode yang di-push ke branch `main`, GitHub Actions akan otomatis mengompilasi APK TV dan Mobile terbaru yang dapat diunduh langsung pada tab **Actions** repositori Anda.
 
 ---
 
-<a id="faq"></a>
-## ❓ Frequently Asked Questions (FAQ)
+## ❓ FAQ & Troubleshooting
 
-### ⚠️ Aplikasi menampilkan "Failed to Connect" atau data tidak muncul?
-1. Pastikan server backend sedang menyala (jendela `1-JALANKAN-SERVER.bat` tetap terbuka).
-2. Pastikan laptop dan HP/TV berada di jaringan Wi-Fi lokal yang sama.
-3. Di menu Pengaturan aplikasi, klik tombol **"Auto-Detect Server"** atau masukkan URL backend secara manual (contoh: `http://192.168.1.163:5376/`).
-4. Tekan **"Test Backend Connection"** untuk memastikan respon `HTTP 200`.
+<details>
+<summary><strong>Q: Video tidak berputar atau muncul pesan "Gagal mengambil master playlist HLS"?</strong></summary>
+<p>
 
-### 🌐 Apakah bisa menonton langsung dari laptop tanpa HP/TV?
-Bisa! Buka browser di laptop Anda dan akses alamat **`http://localhost:5376`**. Web Player bawaan siap digunakan untuk mencari dan menonton film secara instan.
+1. Pastikan server backend di laptop sedang menyala melalui script `1-JALANKAN-SERVER.bat`.
+2. Pastikan file `Backend API/.env` di laptop Anda sudah berisi akun IDLIX yang valid agar verifikasi Cloudflare Turnstile dilewati.
+3. Pastikan aplikasi TV atau HP sudah menggunakan rilis terbaru (TV v1.0.6, Mobile v1.0.3) yang mendukung rute proxy redeem `/watch/session/redeem`.
+</p>
+</details>
+
+<details>
+<summary><strong>Q: Tombol Auto-Detect Server tidak menemukan laptop?</strong></summary>
+<p>
+
+1. Pastikan laptop dan TV/HP terhubung ke Wi-Fi / Router yang sama.
+2. Periksa apakah Windows Firewall memblokir port `5376`. Berikan izin (*Allow access*) untuk Node.js di Firewall.
+3. Anda juga dapat memasukkan alamat IP laptop secara manual di menu Pengaturan (misal: `http://192.168.1.163:5376`).
+</p>
+</details>
+
+<details>
+<summary><strong>Q: Bisakah saya menonton film langsung di laptop tanpa HP atau TV?</strong></summary>
+<p>
+Bisa! Setelah menjalankan <code>1-JALANKAN-SERVER.bat</code>, buka browser laptop Anda dan masuk ke alamat <a href="http://localhost:5376/player">http://localhost:5376/player</a>.
+</p>
+</details>
 
 ---
 
-<a id="keamanan-lisensi"></a>
-## 🔒 Keamanan, Lisensi & Pembuat
+## 🔒 Keamanan & Lisensi
 
+* **Privasi Kredensial**: Informasi sensitif seperti kredensial akun upstream dan file konfigurasi lokal (`.env`, `local.properties`, keystore) sepenuhnya dilindungi dan diabaikan oleh [`.gitignore`](.gitignore).
 * **Pembuat & Pengembang**: [claudiaaulerie](https://github.com/claudiaaulerie)
 * **Repositori Resmi**: [https://github.com/claudiaaulerie/IDLIX-Player](https://github.com/claudiaaulerie/IDLIX-Player)
-* **Keamanan**: File sensitif seperti `local.properties`, sertifikat signing keystore (`*.jks`), dan credential environment dilindungi di `.gitignore`.
-* **Lisensi**: Proyek ini dibuat untuk keperluan edukasi dan riset arsitektur native multi-module Android serta streaming HLS.
+* **Pemberitahuan Lisensi**: Proyek ini dikembangkan secara independen untuk tujuan riset arsitektur aplikasi native multi-platform Android dan streaming media HLS. Seluruh konten media merupakan hak cipta dari masing-masing penyedia layanan.
