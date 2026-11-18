@@ -12,6 +12,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -195,7 +196,8 @@ fun SubtitleModalBottomSheet(
                             if (isLandscape) {
                                 Modifier
                                     .fillMaxHeight()
-                                    .widthIn(min = 380.dp, max = 460.dp)
+                                    .fillMaxWidth(if (configuration.screenWidthDp > 600) 0.52f else 0.72f)
+                                    .widthIn(min = 320.dp, max = 500.dp)
                             } else {
                                 Modifier
                                     .fillMaxWidth()
@@ -211,8 +213,8 @@ fun SubtitleModalBottomSheet(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 20.dp)
-                            .padding(bottom = 20.dp)
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 16.dp)
                     ) {
                         // Header with Title / Drag Handle & Close Button
                         Row(
@@ -439,15 +441,25 @@ fun SubtitleModalBottomSheet(
                 } else {
                     // Standard Tracks View
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = if (isSubtitleEnabled) stringResource(R.string.subtitle_on) else stringResource(R.string.subtitle_off),
-                            fontSize = 13.sp,
-                            color = if (isSubtitleEnabled) IdlixRed else TextMuted
-                        )
+                        Column {
+                            Text(
+                                text = stringResource(R.string.audio_and_subtitles),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextWhite
+                            )
+                            Text(
+                                text = if (isSubtitleEnabled) stringResource(R.string.subtitle_on) else stringResource(R.string.subtitle_off),
+                                fontSize = 12.sp,
+                                color = if (isSubtitleEnabled) IdlixRed else TextMuted
+                            )
+                        }
                         Switch(
                             checked = isSubtitleEnabled,
                             onCheckedChange = { onToggleSubtitle() },
@@ -461,7 +473,7 @@ fun SubtitleModalBottomSheet(
                     }
 
                     HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 10.dp),
+                        modifier = Modifier.padding(vertical = 8.dp),
                         color = Color.White.copy(alpha = 0.08f)
                     )
 
@@ -532,6 +544,7 @@ fun SubtitleModalBottomSheet(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState())
                                     .padding(top = 10.dp, bottom = 2.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
@@ -1044,7 +1057,7 @@ private fun SubtitleOptionItem(
             .clip(RoundedCornerShape(8.dp))
             .background(if (isSelected) IdlixRed.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.04f))
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -1076,13 +1089,14 @@ private fun SubtitleOptionItem(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     color = if (isSelected) TextWhite else TextSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 if (!subtitle.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = subtitle,
                         fontSize = 11.sp,
@@ -1095,6 +1109,7 @@ private fun SubtitleOptionItem(
         }
 
         if (isSelected) {
+            Spacer(modifier = Modifier.width(8.dp))
             Box(
                 modifier = Modifier
                     .size(24.dp)
@@ -1109,6 +1124,7 @@ private fun SubtitleOptionItem(
                 )
             }
         } else if (showDownloadIcon) {
+            Spacer(modifier = Modifier.width(8.dp))
             Icon(
                 imageVector = Icons.Default.Download,
                 contentDescription = null,
@@ -1137,28 +1153,38 @@ private fun LanguageCardButton(
             .clickable(onClick = onClick)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = flag, fontSize = 18.sp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Column {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                Text(text = flag, fontSize = 16.sp)
+                Spacer(modifier = Modifier.width(6.dp))
+                Column(modifier = Modifier.weight(1f, fill = false)) {
                     Text(
                         text = languageName,
                         color = TextWhite,
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
+                        fontSize = 12.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = description,
                         color = if (isSelected) IdlixRed else TextDim,
-                        fontSize = 10.sp
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
             if (isSelected) {
+                Spacer(modifier = Modifier.width(4.dp))
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = null,
