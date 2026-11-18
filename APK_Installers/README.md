@@ -9,11 +9,11 @@ Folder ini menyediakan paket installer APK siap pasang untuk **Android TV / Goog
 ```
 APK_Installers/
 ├── Android_TV/
-│   ├── IDLIX-TV-Modified (Auto-Detect).apk        # ⭐ Rilis TV v1.0.6: Auto-Detect Server & Leanback UI (~22.1 MB)
+│   ├── IDLIX-TV-Modified (Auto-Detect).apk        # ⭐ Rilis TV v1.0.7: Auto-Detect Server & Leanback UI (~22.1 MB)
 │   └── README.md                                  # Panduan khusus instalasi Android TV
 │
 ├── Mobile_HP/
-│   ├── IDLIX-Mobile-Modified (Auto-Detect).apk    # ⭐ Rilis Mobile v1.0.3: Auto-Detect Server, Gestures & PiP (~23.1 MB)
+│   ├── IDLIX-Mobile-Modified (Auto-Detect).apk    # ⭐ Rilis Mobile v1.0.7: Subtitle Drawer Rapi & Auto-Update (~23.2 MB)
 │   └── README.md                                  # Panduan khusus instalasi Mobile
 │
 ├── PANDUAN_INSTALL.txt                            # Catatan teks petunjuk instalasi cepat
@@ -26,8 +26,8 @@ APK_Installers/
 
 | Platform | Versi | File APK | Ukuran | Fitur Utama |
 | :--- | :---: | :--- | :---: | :--- |
-| 📺 **Android TV / Google TV** | **v1.0.6** | [`IDLIX-TV-Modified (Auto-Detect).apk`](Android_TV/IDLIX-TV-Modified%20(Auto-Detect).apk) | ~22.1 MB | Leanback 10-foot UI, D-Pad Remote, Auto-Detect Server, Hardware Acceleration ExoPlayer |
-| 📱 **Android Mobile (HP/Tablet)** | **v1.0.4** | [`IDLIX-Mobile-Modified (Auto-Detect).apk`](Mobile_HP/IDLIX-Mobile-Modified%20(Auto-Detect).apk) | ~23.1 MB | Material 3, Subtitle ID & EN Selector, Swipe Gestures, PiP |
+| 📺 **Android TV / Google TV** | **v1.0.7** | [`IDLIX-TV-Modified (Auto-Detect).apk`](Android_TV/IDLIX-TV-Modified%20(Auto-Detect).apk) | ~22.1 MB | Leanback 10-foot UI, D-Pad Remote, Auto-Detect Server, Hardware Acceleration ExoPlayer |
+| 📱 **Android Mobile (HP/Tablet)** | **v1.0.7** | [`IDLIX-Mobile-Modified (Auto-Detect).apk`](Mobile_HP/IDLIX-Mobile-Modified%20(Auto-Detect).apk) | ~23.2 MB | Material 3, Subtitle ID & EN Selector, Swipe Gestures, PiP |
 
 ---
 
