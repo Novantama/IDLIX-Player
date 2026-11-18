@@ -1000,9 +1000,11 @@ fun SubtitleModalBottomSheet(
                     }
                 }
             }
+                    }
+                }
+            }
         }
     }
-}
 
     // Custom Color Picker Sheet inside modal
     ColorPickerSheet(
