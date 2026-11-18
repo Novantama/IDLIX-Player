@@ -134,9 +134,11 @@ fun DetailScreen(
         }
     }
 
-    // Intercept Back Press: If editing position, close editor; if fullscreen, exit fullscreen; if inline, pop back
-    BackHandler(enabled = isEditingPosition || isFullscreen) {
-        if (isEditingPosition) {
+    // Intercept Back Press: If subtitle picker open, close it; if editing position, close editor; if fullscreen, exit fullscreen; if inline, pop back
+    BackHandler(enabled = uiState.isSubtitlePickerVisible || isEditingPosition || isFullscreen) {
+        if (uiState.isSubtitlePickerVisible) {
+            viewModel.closeSubtitlePicker()
+        } else if (isEditingPosition) {
             isEditingPosition = false
         } else {
             isFullscreen = false

@@ -138,10 +138,8 @@ class PlayerViewModel(
             )
 
             result.onSuccess { resolved ->
-                val prefLang = com.idlix.data.util.LocaleHelper.getPreferredLanguage()
-                val fallbackLang = if (prefLang == "id") "en" else "id"
-                val defaultSub = resolved.subtitles.firstOrNull { it.lang.equals(prefLang, ignoreCase = true) }
-                    ?: resolved.subtitles.firstOrNull { it.lang.equals(fallbackLang, ignoreCase = true) }
+                val defaultSub = resolved.subtitles.firstOrNull { it.lang.equals("id", ignoreCase = true) || it.lang.equals("in", ignoreCase = true) }
+                    ?: resolved.subtitles.firstOrNull { it.lang.equals("en", ignoreCase = true) }
                     ?: resolved.subtitles.firstOrNull()
 
                 _uiState.value = _uiState.value.copy(

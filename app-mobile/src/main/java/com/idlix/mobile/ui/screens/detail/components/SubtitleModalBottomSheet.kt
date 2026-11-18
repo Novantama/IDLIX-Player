@@ -1,9 +1,18 @@
 package com.idlix.mobile.ui.screens.detail.components
 
+import android.content.res.Configuration
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,22 +20,28 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
@@ -70,6 +85,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -139,9 +155,6 @@ fun SubtitleModalBottomSheet(
     onOpenPositionEditor: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    if (!isVisible) return
-
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var selectedTab by remember { mutableIntStateOf(0) }
     var activePicker by remember { mutableStateOf(ModalActivePicker.NONE) }
     var selectedLangFilter by remember { mutableStateOf("ALL") }
@@ -150,27 +163,104 @@ fun SubtitleModalBottomSheet(
     val recentColors by PlayerAppearanceStore.recentCustomColors.collectAsState()
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = BackgroundElevated,
-        contentColor = TextWhite,
-        dragHandle = {
-            Surface(
-                modifier = Modifier.padding(vertical = 10.dp),
-                color = Color.White.copy(alpha = 0.2f),
-                shape = RoundedCornerShape(2.dp)
-            ) {
-                Box(modifier = Modifier.size(width = 36.dp, height = 4.dp))
-            }
-        }
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+    AnimatedVisibility(
+        visible = isVisible,
+        enter = fadeIn(),
+        exit = fadeOut()
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp)
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.7f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss
+                ),
+            contentAlignment = if (isLandscape) Alignment.CenterEnd else Alignment.BottomCenter
         ) {
+            AnimatedVisibility(
+                visible = isVisible,
+                enter = if (isLandscape) slideInHorizontally(initialOffsetX = { it }) else slideInVertically(initialOffsetY = { it }),
+                exit = if (isLandscape) slideOutHorizontally(targetOffsetX = { it }) else slideOutVertically(targetOffsetY = { it })
+            ) {
+                Surface(
+                    color = BackgroundElevated,
+                    shape = if (isLandscape) RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp) else RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+                    modifier = Modifier
+                        .then(
+                            if (isLandscape) {
+                                Modifier
+                                    .fillMaxHeight()
+                                    .widthIn(min = 380.dp, max = 460.dp)
+                            } else {
+                                Modifier
+                                    .fillMaxWidth()
+                                    .fillMaxHeight(0.85f)
+                            }
+                        )
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = {} // Consume click inside modal
+                        )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp)
+                            .padding(bottom = 20.dp)
+                    ) {
+                        // Header with Title / Drag Handle & Close Button
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp, bottom = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (!isLandscape) {
+                                Box(modifier = Modifier.size(28.dp))
+                                Surface(
+                                    modifier = Modifier.padding(vertical = 4.dp),
+                                    color = Color.White.copy(alpha = 0.25f),
+                                    shape = RoundedCornerShape(2.dp)
+                                ) {
+                                    Box(modifier = Modifier.size(width = 36.dp, height = 4.dp))
+                                }
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.ClosedCaption,
+                                        contentDescription = null,
+                                        tint = IdlixRed,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = stringResource(R.string.audio_and_subtitles),
+                                        color = TextWhite,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            IconButton(
+                                onClick = onDismiss,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = stringResource(R.string.close),
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
             // Tab Header: Tracks vs Appearance
             TabRow(
                 selectedTabIndex = selectedTab,
@@ -422,7 +512,7 @@ fun SubtitleModalBottomSheet(
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 420.dp),
+                            .weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         // 1. Primary Language Selection Section (Pilihan Bahasa Utama)
@@ -718,6 +808,8 @@ fun SubtitleModalBottomSheet(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
                         .padding(vertical = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
@@ -910,6 +1002,7 @@ fun SubtitleModalBottomSheet(
             }
         }
     }
+}
 
     // Custom Color Picker Sheet inside modal
     ColorPickerSheet(

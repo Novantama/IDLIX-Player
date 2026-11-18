@@ -47,6 +47,7 @@
     <string name="subtitle_lang_all">Semua</string>
     <string name="subtitle_language">Subtitle Bahasa</string>
     <string name="change_subtitle">Ganti →</string>
+    <string name="close">Tutup</string>
     <string name="audio">Audio</string>
     <string name="skip_intro">Skip Intro</string>
     <string name="next_episode">Next Episode</string>
