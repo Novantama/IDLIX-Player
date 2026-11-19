@@ -17,6 +17,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
@@ -240,6 +244,13 @@ object AppUpdateManager {
 
             ApiClient.updateHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
+                    if (response.code == 404 && downloadUrl.contains("github.com") && !downloadUrl.contains("releases/assets")) {
+                        val fallbackUrl = resolveGitHubAssetUrl(latestVersion, platform)
+                        if (!fallbackUrl.isNullOrBlank() && fallbackUrl != downloadUrl) {
+                            downloadApk(context, fallbackUrl, latestVersion, targetFile)
+                            return
+                        }
+                    }
                     _state.value = AppUpdateState.Error(
                         errorType = AppUpdateErrorType.HTTP_ERROR,
                         httpCode = response.code
@@ -447,6 +458,41 @@ object AppUpdateManager {
             )
             false
         }
+    }
+
+    private fun resolveGitHubAssetUrl(version: String, platform: AppPlatform): String? {
+        val candidateTags = listOf("v$version", version, "latest")
+        for (tag in candidateTags) {
+            val endpoint = if (tag == "latest") {
+                "https://api.github.com/repos/claudiaaulerie/IDLIX-Player/releases/latest"
+            } else {
+                "https://api.github.com/repos/claudiaaulerie/IDLIX-Player/releases/tags/$tag"
+            }
+            try {
+                val req = Request.Builder().url(endpoint).get().build()
+                ApiClient.updateHttpClient.newCall(req).execute().use { res ->
+                    if (res.isSuccessful) {
+                        val bodyStr = res.body?.string() ?: return@use
+                        val json = Json { ignoreUnknownKeys = true }
+                        val root = json.parseToJsonElement(bodyStr).jsonObject
+                        val assets = root["assets"]?.jsonArray ?: return@use
+                        for (asset in assets) {
+                            val name = asset.jsonObject["name"]?.jsonPrimitive?.content ?: ""
+                            val isMatch = when (platform) {
+                                AppPlatform.TV -> name.contains("tv", ignoreCase = true)
+                                AppPlatform.MOBILE -> name.contains("mobile", ignoreCase = true)
+                            }
+                            if (isMatch) {
+                                return asset.jsonObject["url"]?.jsonPrimitive?.content
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // Ignore and try next tag
+            }
+        }
+        return null
     }
 }
 

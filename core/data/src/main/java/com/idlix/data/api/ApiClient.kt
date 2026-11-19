@@ -482,13 +482,10 @@ object ApiClient {
                     .header("Pragma", "no-cache")
 
                 val host = originalRequest.url.host.lowercase()
-                val path = originalRequest.url.encodedPath
-                val isTargetRepo = (host.contains("github.com") || host.contains("githubusercontent.com")) &&
-                        (path.contains("$GITHUB_REPO_OWNER/$GITHUB_REPO_NAME", ignoreCase = true) ||
-                         path.contains("IDLIX-Player", ignoreCase = true))
+                val isGitHub = host.contains("github.com") || host.contains("githubusercontent.com")
 
-                if (isTargetRepo && githubUpdateToken.isNotBlank()) {
-                    reqBuilder.header("Authorization", "token $githubUpdateToken")
+                if (isGitHub && githubUpdateToken.isNotBlank()) {
+                    reqBuilder.header("Authorization", "Bearer $githubUpdateToken")
                     reqBuilder.header("Accept", "application/vnd.github.v3.raw, application/octet-stream, */*")
                 }
 

@@ -91,10 +91,14 @@ Copy-Item "build_artifacts\IDLIX-Mobile-Modified-APK\app-mobile-debug.apk" "APK_
 Copy-Item "build_artifacts\IDLIX-TV-Modified-APK\app-tv-debug.apk" "APK_Installers\Android_TV\IDLIX-TV-Modified (Auto-Detect).apk" -Force
 Remove-Item -Recurse -Force "build_artifacts"
 
-# 6. Commit and push APK binaries
-git add APK_Installers/
-git commit -m "chore(release): publish compiled APK binaries for v$MobileVersion"
-git push origin main
+# 6. Upload APK binaries to GitHub Releases
+Write-Host "Sedang mengunggah APK ke GitHub Releases (v$MobileVersion)..." -ForegroundColor Cyan
+gh release create "v$MobileVersion" `
+    "APK_Installers\Mobile_HP\IDLIX-Mobile-Modified (Auto-Detect).apk" `
+    "APK_Installers\Android_TV\IDLIX-TV-Modified (Auto-Detect).apk" `
+    --title "IDLIX Player v$MobileVersion" `
+    --notes "$Changelog" `
+    --latest
 
 Write-Host "======================================================================" -ForegroundColor Green
 Write-Host "[BERHASIL] Seluruh proses Auto Push Update selesai!" -ForegroundColor Green

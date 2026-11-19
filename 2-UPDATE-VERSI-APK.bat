@@ -10,6 +10,7 @@ echo               Repository: claudiaaulerie/IDLIX-Player
 echo ======================================================================
 echo.
 
+set "GH_TOKEN="
 powershell -ExecutionPolicy Bypass -File "%~dp0scripts\auto_release_update.ps1"
 
 pause
