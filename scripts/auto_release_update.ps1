@@ -67,31 +67,29 @@ if ($TvVersion -ne '') {
     Write-Host "[✓] app-tv/build.gradle.kts: versionCode=$newTvCode, versionName=$TvVersion" -ForegroundColor Green
 }
 
-# 4. Commit and push triggers GitHub Actions
-Write-Host "Sedang melakukan push ke GitHub main untuk memicu kompilasi cloud..." -ForegroundColor Cyan
+# 4. Compile APKs locally using Gradle and local Android SDK
+Write-Host "Sedang mengompilasi APK secara LOKAL di laptop via Gradle..." -ForegroundColor Cyan
+$env:JAVA_HOME = "C:\Program Files\Microsoft\jdk-21.0.13.102-hotspot"
+$env:ANDROID_HOME = "$env:LOCALAPPDATA\Android\Sdk"
+
+& .\gradlew.bat assembleDebug
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[X] Gagal mengompilasi APK secara lokal!" -ForegroundColor Red
+    exit 1
+}
+
+# 5. Move locally compiled APKs to installer folder
+Write-Host "[✓] Kompilasi lokal berhasil! Menyalin file APK..." -ForegroundColor Green
+Copy-Item "app-mobile\build\outputs\apk\debug\app-mobile-debug.apk" "APK_Installers\Mobile_HP\IDLIX-Mobile-Modified (Auto-Detect).apk" -Force
+Copy-Item "app-tv\build\outputs\apk\debug\app-tv-debug.apk" "APK_Installers\Android_TV\IDLIX-TV-Modified (Auto-Detect).apk" -Force
+
+# 6. Commit version bump and push source code
 git add releases.ini app-mobile/build.gradle.kts app-tv/build.gradle.kts
 git commit -m "chore(release): bump app version to Mobile v$MobileVersion, TV v$TvVersion"
 git push origin main
 
-Write-Host "Menunggu GitHub Actions memulai build..." -ForegroundColor Cyan
-Start-Sleep -Seconds 5
-
-$runJson = gh run list --workflow="Build IDLIX APKs" --limit 1 --json databaseId,status,conclusion | ConvertFrom-Json
-$runId = $runJson[0].databaseId
-
-Write-Host "Memantau proses build GitHub Actions (Run ID: $runId)..." -ForegroundColor Yellow
-gh run watch $runId --exit-status
-
-Write-Host "[✓] Build cloud selesai! Sedang mengunduh APK terbaru..." -ForegroundColor Green
-if (Test-Path "build_artifacts") { Remove-Item -Recurse -Force "build_artifacts" }
-gh run download $runId --dir "build_artifacts"
-
-# 5. Move APKs to installer folder
-Copy-Item "build_artifacts\IDLIX-Mobile-Modified-APK\app-mobile-debug.apk" "APK_Installers\Mobile_HP\IDLIX-Mobile-Modified (Auto-Detect).apk" -Force
-Copy-Item "build_artifacts\IDLIX-TV-Modified-APK\app-tv-debug.apk" "APK_Installers\Android_TV\IDLIX-TV-Modified (Auto-Detect).apk" -Force
-Remove-Item -Recurse -Force "build_artifacts"
-
-# 6. Upload APK binaries to GitHub Releases
+# 7. Upload APK binaries to GitHub Releases
 Write-Host "Sedang mengunggah APK ke GitHub Releases (v$MobileVersion)..." -ForegroundColor Cyan
 gh release create "v$MobileVersion" `
     "APK_Installers\Mobile_HP\IDLIX-Mobile-Modified (Auto-Detect).apk" `

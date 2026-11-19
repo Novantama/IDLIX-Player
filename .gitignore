@@ -51,6 +51,8 @@ ehthumbs.db
 
 # Logs & Captures
 *.log
+*.tmp
+decompiled_*/
 captures/
 .externalNativeBuild/
 .cxx/
