@@ -23,7 +23,7 @@
 
 | 📺 Android TV APK | 📱 Mobile HP APK | 💻 Web Dashboard | 🐧 Panduan Linux | 📜 Panduan TV |
 | :---: | :---: | :---: | :---: | :---: |
-| [**Download v1.0.7 TV**](APK_Installers/Android_TV/IDLIX-TV-Modified%20(Auto-Detect).apk) | [**Download v1.0.7 Mobile**](APK_Installers/Mobile_HP/IDLIX-Mobile-Modified%20(Auto-Detect).apk) | [**http://localhost:5376**](http://localhost:5376) | [**Buka Panduan Linux**](docs/PANDUAN_LINUX.md) | [**Panduan Pasang TV**](docs/PANDUAN_INSTALASI_TV.md) |
+| [**Download v1.0.7 TV**](https://github.com/claudiaaulerie/IDLIX-Player/releases/download/v1.0.7/IDLIX-TV-Modified.Auto-Detect.apk) | [**Download v1.0.7 Mobile**](https://github.com/claudiaaulerie/IDLIX-Player/releases/download/v1.0.7/IDLIX-Mobile-Modified.Auto-Detect.apk) | [**http://localhost:5376**](http://localhost:5376) | [**Buka Panduan Linux**](docs/PANDUAN_LINUX.md) | [**Panduan Pasang TV**](docs/PANDUAN_INSTALASI_TV.md) |
 
 ---
 
@@ -62,8 +62,8 @@ Semua paket installer APK siap pasang telah tersedia langsung di direktori [`APK
 
 | Platform | Versi | File APK | Ukuran | Status |
 | :--- | :---: | :--- | :---: | :---: |
-| 📺 **Android TV / Google TV** | **v1.0.7** | [`IDLIX-TV-Modified (Auto-Detect).apk`](APK_Installers/Android_TV/IDLIX-TV-Modified%20(Auto-Detect).apk) | ~22.1 MB | ![Status](https://img.shields.io/badge/Release-Active-success) |
-| 📱 **Android Mobile (HP/Tablet)** | **v1.0.7** | [`IDLIX-Mobile-Modified (Auto-Detect).apk`](APK_Installers/Mobile_HP/IDLIX-Mobile-Modified%20(Auto-Detect).apk) | ~23.2 MB | ![Status](https://img.shields.io/badge/Release-Active-success) |
+| 📺 **Android TV / Google TV** | **v1.0.7** | [`IDLIX-TV-Modified.Auto-Detect.apk`](https://github.com/claudiaaulerie/IDLIX-Player/releases/download/v1.0.7/IDLIX-TV-Modified.Auto-Detect.apk) | ~22.1 MB | ![Status](https://img.shields.io/badge/Release-Active-success) |
+| 📱 **Android Mobile (HP/Tablet)** | **v1.0.7** | [`IDLIX-Mobile-Modified.Auto-Detect.apk`](https://github.com/claudiaaulerie/IDLIX-Player/releases/download/v1.0.7/IDLIX-Mobile-Modified.Auto-Detect.apk) | ~23.2 MB | ![Status](https://img.shields.io/badge/Release-Active-success) |
 | ⚡ **Backend API Server** | **v1.0.1** | [`Backend API/`](Backend%20API/) | - | ![Status](https://img.shields.io/badge/Service-Ready-blue) |
 
 > 💡 **Unduh Langsung dari HP / TV**: Anda juga dapat mengunduh installer APK langsung melalui tautan raw GitHub pada file [`releases.ini`](releases.ini).
