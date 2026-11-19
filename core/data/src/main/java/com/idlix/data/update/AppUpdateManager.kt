@@ -220,7 +220,8 @@ object AppUpdateManager {
                 context = appContext,
                 downloadUrl = resolvedDownloadUrl,
                 latestVersion = remoteVersion,
-                targetFile = targetApkFile
+                targetFile = targetApkFile,
+                platform = platform
             )
         }
     }
@@ -229,7 +230,8 @@ object AppUpdateManager {
         context: Context,
         downloadUrl: String,
         latestVersion: String,
-        targetFile: File
+        targetFile: File,
+        platform: AppPlatform
     ) {
         val tempFile = File(targetFile.parentFile, "${targetFile.name}.tmp")
         try {
@@ -247,7 +249,7 @@ object AppUpdateManager {
                     if (response.code == 404 && downloadUrl.contains("github.com") && !downloadUrl.contains("releases/assets")) {
                         val fallbackUrl = resolveGitHubAssetUrl(latestVersion, platform)
                         if (!fallbackUrl.isNullOrBlank() && fallbackUrl != downloadUrl) {
-                            downloadApk(context, fallbackUrl, latestVersion, targetFile)
+                            downloadApk(context, fallbackUrl, latestVersion, targetFile, platform)
                             return
                         }
                     }
