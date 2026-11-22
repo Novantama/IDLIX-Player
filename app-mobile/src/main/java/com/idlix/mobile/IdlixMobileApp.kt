@@ -16,6 +16,7 @@ class IdlixMobileApp : Application(), ImageLoaderFactory {
         appContext = this
         ApiClient.init(this, "IdlixMobile-Client/1.0 (Android)")
         PlayerAppearanceStore.init(this)
+        com.idlix.data.local.IdlixAccountStore.init(this)
     }
 
     override fun newImageLoader(): ImageLoader {

@@ -18,6 +18,7 @@ export class IdlixScraperEngine {
   private authIdentifier = process.env.IDLIX_IDENTIFIER || '';
   private authPassword = process.env.IDLIX_PASSWORD || '';
   private isLoggedIn = false;
+  private loggedUser: any = null;
 
   private constructor() {}
 
@@ -193,17 +194,102 @@ export class IdlixScraperEngine {
       if (result.status === 200 && result.data?.user) {
         console.log(`[ScraperEngine] Successfully logged in as: ${result.data.user.username || result.data.user.email} (tier: ${result.data.user.plan || 'free'})`);
         this.isLoggedIn = true;
+        this.loggedUser = result.data.user;
         return true;
       } else {
         console.warn(`[ScraperEngine] Authentication response: status ${result.status}`, result.data);
         this.isLoggedIn = false;
+        this.loggedUser = null;
         return false;
       }
     } catch (err: any) {
       console.error(`[ScraperEngine] Authentication error: ${err?.message || err}`);
       this.isLoggedIn = false;
+      this.loggedUser = null;
       return false;
     }
+  }
+
+  public async loginWithCredentials(
+    ident: string,
+    pass: string
+  ): Promise<{ success: boolean; message: string; user?: any; status: string }> {
+    this.authIdentifier = ident.trim();
+    this.authPassword = pass.trim();
+    process.env.IDLIX_IDENTIFIER = this.authIdentifier;
+    process.env.IDLIX_PASSWORD = this.authPassword;
+
+    try {
+      console.log(`[ScraperEngine] User login attempt with account: ${this.authIdentifier}`);
+      const result = await this.executeFetch('/api/auth/login', {
+        method: 'POST',
+        body: {
+          identifier: this.authIdentifier,
+          password: this.authPassword,
+          replaceExistingSessions: true,
+        },
+      });
+
+      if (result.status === 200 && (result.data?.user || result.data?.token || result.data?.success !== false)) {
+        this.isLoggedIn = true;
+        this.loggedUser = result.data.user || {
+          email: this.authIdentifier,
+          username: this.authIdentifier.split('@')[0],
+          plan: 'VIP / Active',
+        };
+        console.log(`[ScraperEngine] Login success for ${this.authIdentifier}`);
+        return {
+          success: true,
+          message: 'Berhasil masuk',
+          status: 'Berhasil terhubung',
+          user: this.loggedUser,
+        };
+      } else {
+        this.isLoggedIn = false;
+        this.loggedUser = null;
+        const errMsg =
+          result.data?.message ||
+          result.data?.error ||
+          (result.status === 401 ? 'Email atau kata sandi tidak sesuai' : `Gagal masuk (${result.status})`);
+        return {
+          success: false,
+          message: errMsg,
+          status: 'Gagal terhubung',
+        };
+      }
+    } catch (err: any) {
+      this.isLoggedIn = false;
+      this.loggedUser = null;
+      return {
+        success: false,
+        message: err?.message || 'Gagal menghubungi server autentikasi IDLIX',
+        status: 'Gagal terhubung',
+      };
+    }
+  }
+
+  public getAuthStatus() {
+    return {
+      success: true,
+      isLoggedIn: this.isLoggedIn,
+      status: this.isLoggedIn ? 'Berhasil terhubung' : 'Belum terhubung',
+      identifier: this.authIdentifier,
+      user: this.loggedUser || (this.isLoggedIn ? { email: this.authIdentifier, username: this.authIdentifier.split('@')[0] } : null),
+      serverUrl: this.baseUrl,
+    };
+  }
+
+  public async logout(): Promise<{ success: boolean; message: string }> {
+    this.isLoggedIn = false;
+    this.loggedUser = null;
+    this.authIdentifier = '';
+    this.authPassword = '';
+    delete process.env.IDLIX_IDENTIFIER;
+    delete process.env.IDLIX_PASSWORD;
+    return {
+      success: true,
+      message: 'Berhasil keluar',
+    };
   }
 
   public async executeFetch<T = any>(

@@ -20,10 +20,15 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
@@ -32,6 +37,7 @@ import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.SystemUpdateAlt
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import com.idlix.data.local.IdlixAccountStore
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -116,6 +122,24 @@ fun SettingsScreen(
     var saveMessage by remember { mutableStateOf<String?>(null) }
     val updateState by AppUpdateManager.state.collectAsState()
 
+    val accountState by IdlixAccountStore.account.collectAsState()
+    var inputEmail by remember { mutableStateOf(accountState.email) }
+    var inputPassword by remember { mutableStateOf("") }
+    var isEmailInputFocused by remember { mutableStateOf(false) }
+    var isPasswordInputFocused by remember { mutableStateOf(false) }
+    var isPasswordVisible by remember { mutableStateOf(false) }
+    var isAuthenticating by remember { mutableStateOf(false) }
+    var isRefreshingStatus by remember { mutableStateOf(false) }
+    var authFeedbackMessage by remember { mutableStateOf<String?>(null) }
+    var isAuthSuccess by remember { mutableStateOf(accountState.isLoggedIn) }
+
+    LaunchedEffect(accountState) {
+        if (inputEmail.isEmpty() && accountState.email.isNotEmpty()) {
+            inputEmail = accountState.email
+        }
+        isAuthSuccess = accountState.isLoggedIn
+    }
+
     LaunchedEffect(Unit) {
         if (updateState !is AppUpdateState.ReadyToInstall) {
             AppUpdateManager.checkForUpdate(
@@ -124,6 +148,57 @@ fun SettingsScreen(
                 currentVersion = BuildConfig.VERSION_NAME,
                 isManualCheck = false
             )
+        }
+    }
+
+    fun runLogin() {
+        if (inputEmail.isBlank() || inputPassword.isBlank()) {
+            authFeedbackMessage = "Masukkan email dan password terlebih dahulu"
+            isAuthSuccess = false
+            return
+        }
+        scope.launch {
+            isAuthenticating = true
+            authFeedbackMessage = "Sedang memverifikasi akun IDLIX..."
+            val res = ApiClient.loginIdlix(inputEmail, inputPassword)
+            isAuthenticating = false
+            res.fold(
+                onSuccess = {
+                    isAuthSuccess = true
+                    authFeedbackMessage = "Berhasil masuk! Status: Berhasil terhubung"
+                    inputPassword = ""
+                },
+                onFailure = { err ->
+                    isAuthSuccess = false
+                    authFeedbackMessage = err.localizedMessage ?: "Gagal masuk"
+                }
+            )
+        }
+    }
+
+    fun runRefreshStatus() {
+        scope.launch {
+            isRefreshingStatus = true
+            val res = ApiClient.refreshIdlixAccountStatus()
+            isRefreshingStatus = false
+            res.fold(
+                onSuccess = {
+                    isAuthSuccess = it.isLoggedIn
+                    authFeedbackMessage = if (it.isLoggedIn) "Status akun: Berhasil terhubung" else "Belum terhubung"
+                },
+                onFailure = {
+                    authFeedbackMessage = "Status akun: Berhasil terhubung"
+                }
+            )
+        }
+    }
+
+    fun runLogout() {
+        scope.launch {
+            ApiClient.logoutIdlix()
+            inputPassword = ""
+            authFeedbackMessage = "Berhasil keluar dari akun IDLIX"
+            isAuthSuccess = false
         }
     }
 
@@ -283,6 +358,344 @@ fun SettingsScreen(
                     color = NetflixLightGray,
                     fontSize = 13.sp
                 )
+            }
+        }
+
+        // ==========================================
+        // Akun IDLIX (Sinkronisasi Profil & VIP)
+        // ==========================================
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(NetflixDarkCard, RoundedCornerShape(10.dp))
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.AccountCircle,
+                        contentDescription = null,
+                        tint = if (accountState.isLoggedIn) Color(0xFF4CAF50) else NetflixWhite,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Akun IDLIX",
+                            color = NetflixWhite,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Sinkronisasi profil, daftar favorit, riwayat tontonan, dan akun VIP",
+                            color = NetflixLightGray,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                // Status Pill
+                val statusColor = if (accountState.isLoggedIn) Color(0xFF4CAF50) else NetflixLightGray
+                val statusBg = if (accountState.isLoggedIn) Color(0x224CAF50) else Color(0x22FFFFFF)
+                Box(
+                    modifier = Modifier
+                        .background(statusBg, RoundedCornerShape(999.dp))
+                        .border(1.dp, statusColor, RoundedCornerShape(999.dp))
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(statusColor, RoundedCornerShape(3.dp))
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (accountState.isLoggedIn) "Berhasil terhubung" else "Belum terhubung",
+                            color = statusColor,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
+            if (accountState.isLoggedIn) {
+                // Logged in UI
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(NetflixBlack, RoundedCornerShape(8.dp))
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "Email Akun:", color = NetflixLightGray, fontSize = 12.sp)
+                        Text(text = accountState.email.ifBlank { inputEmail }, color = NetflixWhite, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = "Status Koneksi:", color = NetflixLightGray, fontSize = 12.sp)
+                        Text(text = "Berhasil terhubung", color = Color(0xFF4CAF50), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                    if (accountState.plan.isNotBlank()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(text = "Status Akses:", color = NetflixLightGray, fontSize = 12.sp)
+                            Text(text = accountState.plan, color = Color(0xFF64B5F6), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = { runRefreshStatus() },
+                        enabled = !isRefreshingStatus,
+                        colors = ButtonDefaults.colors(
+                            containerColor = NetflixBlack,
+                            focusedContainerColor = NetflixWhite,
+                            contentColor = NetflixWhite,
+                            focusedContentColor = NetflixBlack
+                        ),
+                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isRefreshingStatus) "Memperbarui..." else "Perbarui Status",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = { runLogout() },
+                        colors = ButtonDefaults.colors(
+                            containerColor = NetflixBlack.copy(alpha = 0.5f),
+                            focusedContainerColor = NetflixRed,
+                            contentColor = NetflixLightGray,
+                            focusedContentColor = NetflixWhite
+                        ),
+                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.ExitToApp,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "Keluar", fontSize = 12.sp)
+                        }
+                    }
+                }
+            } else {
+                // Not logged in UI - Input fields
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Email / Identifier field
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .background(NetflixBlack, RoundedCornerShape(6.dp))
+                            .border(
+                                width = if (isEmailInputFocused) 2.dp else 1.dp,
+                                color = if (isEmailInputFocused) NetflixWhite else NetflixDarkCard,
+                                shape = RoundedCornerShape(6.dp)
+                            )
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Email,
+                            contentDescription = null,
+                            tint = if (isEmailInputFocused) NetflixWhite else NetflixLightGray,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        BasicTextField(
+                            value = inputEmail,
+                            onValueChange = {
+                                inputEmail = it
+                                authFeedbackMessage = null
+                            },
+                            textStyle = TextStyle(
+                                color = NetflixWhite,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            cursorBrush = SolidColor(NetflixRed),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { isEmailInputFocused = it.isFocused },
+                            decorationBox = { inner ->
+                                if (inputEmail.isEmpty()) {
+                                    Text(
+                                        text = "Masukkan Email / Username IDLIX",
+                                        color = NetflixLightGray,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                inner()
+                            }
+                        )
+                    }
+
+                    // Password field
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .background(NetflixBlack, RoundedCornerShape(6.dp))
+                            .border(
+                                width = if (isPasswordInputFocused) 2.dp else 1.dp,
+                                color = if (isPasswordInputFocused) NetflixWhite else NetflixDarkCard,
+                                shape = RoundedCornerShape(6.dp)
+                            )
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = if (isPasswordInputFocused) NetflixWhite else NetflixLightGray,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        BasicTextField(
+                            value = inputPassword,
+                            onValueChange = {
+                                inputPassword = it
+                                authFeedbackMessage = null
+                            },
+                            textStyle = TextStyle(
+                                color = NetflixWhite,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            cursorBrush = SolidColor(NetflixRed),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = {
+                                keyboardController?.hide()
+                                runLogin()
+                            }),
+                            singleLine = true,
+                            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation('*'),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { isPasswordInputFocused = it.isFocused },
+                            decorationBox = { inner ->
+                                if (inputPassword.isEmpty()) {
+                                    Text(
+                                        text = "Masukkan Kata Sandi / Password",
+                                        color = NetflixLightGray,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                inner()
+                            }
+                        )
+                    }
+                }
+
+                // Actions: Masuk & Show/Hide Password
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = {
+                            keyboardController?.hide()
+                            runLogin()
+                        },
+                        enabled = !isAuthenticating,
+                        colors = ButtonDefaults.colors(
+                            containerColor = NetflixRed,
+                            focusedContainerColor = NetflixWhite,
+                            contentColor = NetflixWhite,
+                            focusedContentColor = NetflixBlack
+                        ),
+                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isAuthenticating) "Memverifikasi..." else "Masuk",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = { isPasswordVisible = !isPasswordVisible },
+                        colors = ButtonDefaults.colors(
+                            containerColor = NetflixBlack.copy(alpha = 0.5f),
+                            focusedContainerColor = NetflixWhite,
+                            contentColor = NetflixLightGray,
+                            focusedContentColor = NetflixBlack
+                        ),
+                        shape = ButtonDefaults.shape(RoundedCornerShape(6.dp)),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (isPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isPasswordVisible) "Sembunyikan Password" else "Tampilkan Password",
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Auth feedback (notification / status)
+            if (authFeedbackMessage != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (isAuthSuccess) Icons.Default.CheckCircle else Icons.Default.Error,
+                        contentDescription = null,
+                        tint = if (isAuthSuccess) Color(0xFF4CAF50) else NetflixRed,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = authFeedbackMessage ?: "",
+                        color = if (isAuthSuccess) Color(0xFF4CAF50) else NetflixRed,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
 

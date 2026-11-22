@@ -392,13 +392,51 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       tv: {
         apkFound: fs.existsSync(tvApkPath),
         localDownloadUrl: `${protocol}://${host}/api/update/apk/tv`,
-        cloudDownloadUrl: 'https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.7/IDLIX-TV-Modified.Auto-Detect.apk'
+        cloudDownloadUrl: 'https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.9/IDLIX-TV-Modified.Auto-Detect.apk'
       },
       mobile: {
         apkFound: fs.existsSync(mobileApkPath),
         localDownloadUrl: `${protocol}://${host}/api/update/apk/mobile`,
-        cloudDownloadUrl: 'https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.7/IDLIX-Mobile-Modified.Auto-Detect.apk'
+        cloudDownloadUrl: 'https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.9/IDLIX-Mobile-Modified.Auto-Detect.apk'
       }
     };
   });
+
+  // ==========================================
+  // IDLIX User Account Authentication Endpoints
+  // ==========================================
+  const handleAuthLogin = async (req: any, reply: any) => {
+    const { identifier, email, username, password } = req.body || {};
+    const targetIdent = identifier || email || username;
+    if (!targetIdent || !password) {
+      return reply.status(400).send({
+        success: false,
+        message: 'Email / Username dan Password wajib diisi',
+        status: 'Gagal terhubung'
+      });
+    }
+
+    const authResult = await engine.loginWithCredentials(targetIdent, password);
+    if (authResult.success) {
+      return reply.send(authResult);
+    } else {
+      return reply.status(401).send(authResult);
+    }
+  };
+
+  const handleAuthStatus = async (_req: any, reply: any) => {
+    return reply.send(engine.getAuthStatus());
+  };
+
+  const handleAuthLogout = async (_req: any, reply: any) => {
+    const res = await engine.logout();
+    return reply.send(res);
+  };
+
+  fastify.post('/api/auth/login', handleAuthLogin);
+  fastify.post('/auth/login', handleAuthLogin);
+  fastify.get('/api/auth/status', handleAuthStatus);
+  fastify.get('/auth/status', handleAuthStatus);
+  fastify.post('/api/auth/logout', handleAuthLogout);
+  fastify.post('/auth/logout', handleAuthLogout);
 };

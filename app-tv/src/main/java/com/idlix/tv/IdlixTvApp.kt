@@ -16,6 +16,7 @@ class IdlixTvApp : Application(), ImageLoaderFactory {
         appContext = this
         ApiClient.init(this, "IdlixTV-Client/1.0 (Android TV)")
         PlayerAppearanceStore.init(this)
+        com.idlix.data.local.IdlixAccountStore.init(this)
     }
 
     override fun newImageLoader(): ImageLoader {
