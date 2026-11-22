@@ -12,11 +12,11 @@ class ReleaseIniParserTest {
     private val sampleIni = """
         [TV]
         Version=1.0.5
-        Link=https://github.com/claudiaaulerie/IDLIX-Player/releases/download/v1.0.5/IDLIX-TV-Modified.apk
+        Link=https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.5/IDLIX-TV-Modified.apk
 
         [Mobile]
         Version=1.0.2
-        Link=https://github.com/claudiaaulerie/IDLIX-Player/releases/download/v1.0.2/IDLIX-Mobile-Modified.apk
+        Link=https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.2/IDLIX-Mobile-Modified.apk
     """.trimIndent()
 
     @Test
@@ -25,7 +25,7 @@ class ReleaseIniParserTest {
         assertNotNull(result)
         assertEquals("1.0.5", result?.version)
         assertEquals(
-            "https://github.com/claudiaaulerie/IDLIX-Player/releases/download/v1.0.5/IDLIX-TV-Modified.apk",
+            "https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.5/IDLIX-TV-Modified.apk",
             result?.link
         )
     }
@@ -36,7 +36,7 @@ class ReleaseIniParserTest {
         assertNotNull(result)
         assertEquals("1.0.2", result?.version)
         assertEquals(
-            "https://github.com/claudiaaulerie/IDLIX-Player/releases/download/v1.0.2/IDLIX-Mobile-Modified.apk",
+            "https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.2/IDLIX-Mobile-Modified.apk",
             result?.link
         )
     }

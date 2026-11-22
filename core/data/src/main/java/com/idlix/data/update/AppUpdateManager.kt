@@ -57,7 +57,7 @@ sealed interface AppUpdateState {
 
 object AppUpdateManager {
 
-    private const val RELEASES_INI_BASE_URL = "https://raw.githubusercontent.com/claudiaaulerie/IDLIX-Player/main/releases.ini"
+    private const val RELEASES_INI_BASE_URL = "https://raw.githubusercontent.com/Novantama/IDLIX-Player/main/releases.ini"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -111,9 +111,9 @@ object AppUpdateManager {
             val candidateEndpoints = mutableListOf<String>()
 
             // 1. Direct GitHub API endpoint (real-time, no Fastly edge cache delay)
-            candidateEndpoints.add("https://api.github.com/repos/claudiaaulerie/IDLIX-Player/contents/releases.ini")
+            candidateEndpoints.add("https://api.github.com/repos/Novantama/IDLIX-Player/contents/releases.ini")
 
-            // 2. Direct GitHub raw endpoint di repository claudiaaulerie/IDLIX-Player
+            // 2. Direct GitHub raw endpoint di repository Novantama/IDLIX-Player
             candidateEndpoints.add("$RELEASES_INI_BASE_URL?nocache=$timestamp")
 
             // 3. Cek local backend server jika terhubung di jaringan Wi-Fi
@@ -466,9 +466,9 @@ object AppUpdateManager {
         val candidateTags = listOf("v$version", version, "latest")
         for (tag in candidateTags) {
             val endpoint = if (tag == "latest") {
-                "https://api.github.com/repos/claudiaaulerie/IDLIX-Player/releases/latest"
+                "https://api.github.com/repos/Novantama/IDLIX-Player/releases/latest"
             } else {
-                "https://api.github.com/repos/claudiaaulerie/IDLIX-Player/releases/tags/$tag"
+                "https://api.github.com/repos/Novantama/IDLIX-Player/releases/tags/$tag"
             }
             try {
                 val req = Request.Builder().url(endpoint).get().build()

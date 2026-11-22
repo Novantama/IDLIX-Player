@@ -464,7 +464,7 @@ object ApiClient {
             .build()
     }
 
-    private const val GITHUB_REPO_OWNER = "claudiaaulerie"
+    private const val GITHUB_REPO_OWNER = "Novantama"
     private const val GITHUB_REPO_NAME = "IDLIX-Player"
     @Volatile
     var githubUpdateToken: String = ""

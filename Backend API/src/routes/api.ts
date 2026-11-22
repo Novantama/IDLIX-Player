@@ -317,7 +317,7 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
   });
 
   // ==========================================
-  // Auto-Update Engine (Connected to claudiaaulerie/IDLIX-Player)
+  // Auto-Update Engine (Connected to Novantama/IDLIX-Player)
   // ==========================================
   const resolveProjectRoot = () => {
     const candidates = [
@@ -387,17 +387,17 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
     return {
       status: 'ok',
-      repository: 'https://github.com/claudiaaulerie/IDLIX-Player',
+      repository: 'https://github.com/Novantama/IDLIX-Player',
       iniFound: fs.existsSync(iniPath),
       tv: {
         apkFound: fs.existsSync(tvApkPath),
         localDownloadUrl: `${protocol}://${host}/api/update/apk/tv`,
-        cloudDownloadUrl: 'https://github.com/claudiaaulerie/IDLIX-Player/releases/download/v1.0.7/IDLIX-TV-Modified.Auto-Detect.apk'
+        cloudDownloadUrl: 'https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.7/IDLIX-TV-Modified.Auto-Detect.apk'
       },
       mobile: {
         apkFound: fs.existsSync(mobileApkPath),
         localDownloadUrl: `${protocol}://${host}/api/update/apk/mobile`,
-        cloudDownloadUrl: 'https://github.com/claudiaaulerie/IDLIX-Player/releases/download/v1.0.7/IDLIX-Mobile-Modified.Auto-Detect.apk'
+        cloudDownloadUrl: 'https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.7/IDLIX-Mobile-Modified.Auto-Detect.apk'
       }
     };
   });

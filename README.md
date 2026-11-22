@@ -10,11 +10,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/claudiaaulerie/IDLIX-Player"><img src="https://img.shields.io/badge/GitHub-claudiaaulerie%2FIDLIX--Player-blue?style=for-the-badge&logo=github" alt="GitHub Repository" /></a>
-  <a href="https://github.com/claudiaaulerie/IDLIX-Player/releases"><img src="https://img.shields.io/badge/Platform-Android%20TV%20%7C%20Mobile-brightgreen?style=for-the-badge&logo=android" alt="Platforms" /></a>
+  <a href="https://github.com/Novantama/IDLIX-Player"><img src="https://img.shields.io/badge/GitHub-Novantama%2FIDLIX--Player-blue?style=for-the-badge&logo=github" alt="GitHub Repository" /></a>
+  <a href="https://github.com/Novantama/IDLIX-Player/releases"><img src="https://img.shields.io/badge/Platform-Android%20TV%20%7C%20Mobile-brightgreen?style=for-the-badge&logo=android" alt="Platforms" /></a>
   <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.0%20Compose-purple?style=for-the-badge&logo=kotlin" alt="Kotlin" /></a>
   <a href="https://fastify.dev"><img src="https://img.shields.io/badge/Backend-Fastify%20TypeScript-orange?style=for-the-badge&logo=fastify" alt="Fastify Backend" /></a>
-  <a href="https://github.com/claudiaaulerie/IDLIX-Player/actions"><img src="https://img.shields.io/badge/CI%2FCD-GitHub%20Actions%20JDK%2021-success?style=for-the-badge&logo=githubactions" alt="Build APKs" /></a>
+  <a href="https://github.com/Novantama/IDLIX-Player/actions"><img src="https://img.shields.io/badge/CI%2FCD-GitHub%20Actions%20JDK%2021-success?style=for-the-badge&logo=githubactions" alt="Build APKs" /></a>
 </p>
 
 ---
@@ -23,7 +23,7 @@
 
 | 📺 Android TV APK | 📱 Mobile HP APK | 💻 Web Dashboard | 🐧 Panduan Linux | 📜 Panduan TV |
 | :---: | :---: | :---: | :---: | :---: |
-| [**Download v1.0.7 TV**](https://github.com/claudiaaulerie/IDLIX-Player/releases/download/v1.0.7/IDLIX-TV-Modified.Auto-Detect.apk) | [**Download v1.0.7 Mobile**](https://github.com/claudiaaulerie/IDLIX-Player/releases/download/v1.0.7/IDLIX-Mobile-Modified.Auto-Detect.apk) | [**http://localhost:5376**](http://localhost:5376) | [**Buka Panduan Linux**](docs/PANDUAN_LINUX.md) | [**Panduan Pasang TV**](docs/PANDUAN_INSTALASI_TV.md) |
+| [**Download v1.0.7 TV**](https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.7/IDLIX-TV-Modified.Auto-Detect.apk) | [**Download v1.0.7 Mobile**](https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.7/IDLIX-Mobile-Modified.Auto-Detect.apk) | [**http://localhost:5376**](http://localhost:5376) | [**Buka Panduan Linux**](docs/PANDUAN_LINUX.md) | [**Panduan Pasang TV**](docs/PANDUAN_INSTALASI_TV.md) |
 
 ---
 
@@ -62,8 +62,8 @@ Semua paket installer APK siap pasang telah tersedia langsung di direktori [`APK
 
 | Platform | Versi | File APK | Ukuran | Status |
 | :--- | :---: | :--- | :---: | :---: |
-| 📺 **Android TV / Google TV** | **v1.0.7** | [`IDLIX-TV-Modified.Auto-Detect.apk`](https://github.com/claudiaaulerie/IDLIX-Player/releases/download/v1.0.7/IDLIX-TV-Modified.Auto-Detect.apk) | ~22.1 MB | ![Status](https://img.shields.io/badge/Release-Active-success) |
-| 📱 **Android Mobile (HP/Tablet)** | **v1.0.7** | [`IDLIX-Mobile-Modified.Auto-Detect.apk`](https://github.com/claudiaaulerie/IDLIX-Player/releases/download/v1.0.7/IDLIX-Mobile-Modified.Auto-Detect.apk) | ~23.2 MB | ![Status](https://img.shields.io/badge/Release-Active-success) |
+| 📺 **Android TV / Google TV** | **v1.0.7** | [`IDLIX-TV-Modified.Auto-Detect.apk`](https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.7/IDLIX-TV-Modified.Auto-Detect.apk) | ~22.1 MB | ![Status](https://img.shields.io/badge/Release-Active-success) |
+| 📱 **Android Mobile (HP/Tablet)** | **v1.0.7** | [`IDLIX-Mobile-Modified.Auto-Detect.apk`](https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.7/IDLIX-Mobile-Modified.Auto-Detect.apk) | ~23.2 MB | ![Status](https://img.shields.io/badge/Release-Active-success) |
 | ⚡ **Backend API Server** | **v1.0.1** | [`Backend API/`](Backend%20API/) | - | ![Status](https://img.shields.io/badge/Service-Ready-blue) |
 
 > 💡 **Unduh Langsung dari HP / TV**: Anda juga dapat mengunduh installer APK langsung melalui tautan raw GitHub pada file [`releases.ini`](releases.ini).
@@ -326,6 +326,6 @@ Bisa! Setelah menjalankan <code>1-JALANKAN-SERVER.bat</code>, buka browser lapto
 ## 🔒 Keamanan & Lisensi
 
 * **Privasi Kredensial**: File konfigurasi lokal (`.env`, `local.properties`, keystore) sepenuhnya dilindungi dan diabaikan oleh [`.gitignore`](.gitignore).
-* **Pembuat & Pengembang**: [claudiaaulerie](https://github.com/claudiaaulerie)
-* **Repositori Resmi**: [https://github.com/claudiaaulerie/IDLIX-Player](https://github.com/claudiaaulerie/IDLIX-Player)
+* **Pembuat & Pengembang**: [Novantama](https://github.com/Novantama)
+* **Repositori Resmi**: [https://github.com/Novantama/IDLIX-Player](https://github.com/Novantama/IDLIX-Player)
 * **Pemberitahuan Lisensi**: Proyek ini dikembangkan secara independen untuk tujuan riset arsitektur aplikasi native multi-platform Android dan streaming media HLS. Seluruh konten media merupakan hak cipta dari masing-masing penyedia layanan.

@@ -6,7 +6,7 @@ color 0B
 
 echo ======================================================================
 echo          IDLIX PLAYER - AUTO UPDATE PUBLISHER & NOTIFICATION
-echo               Repository: claudiaaulerie/IDLIX-Player
+echo               Repository: Novantama/IDLIX-Player
 echo ======================================================================
 echo.
 

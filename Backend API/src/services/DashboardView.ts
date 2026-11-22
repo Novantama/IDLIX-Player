@@ -167,7 +167,7 @@ export function renderDashboardHtml(port: number, startTime: Date): string {
     </div>
 
     <div class="footer">
-      IDLIX Player Streaming Platform • Developed by claudiaaulerie
+      IDLIX Player Streaming Platform • Developed by Novantama
     </div>
   </div>
 </body>
