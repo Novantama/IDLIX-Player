@@ -452,11 +452,15 @@ fun TvSubtitlePickerModal(
                                 val authorText = sub.author?.let { "by $it" } ?: ""
                                 val releaseText = sub.releaseName ?: sub.name ?: ""
 
+                                val isThisSubdlSelected = isSubtitleEnabled &&
+                                    selectedSubtitle?.label?.startsWith(if (isIndo) "Indonesian [SubDL]" else "English [SubDL]") == true &&
+                                    (!sub.author.isNullOrBlank() && selectedSubtitle.label.contains(sub.author.orEmpty()))
+
                                 SubtitleOptionCard(
                                     title = releaseText,
                                     subtitle = authorText.ifBlank { null },
                                     badge = badgeText,
-                                    isSelected = false,
+                                    isSelected = isThisSubdlSelected,
                                     onClick = { onSelectSubdl(sub) }
                                 )
                             }

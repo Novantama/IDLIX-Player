@@ -32,6 +32,12 @@ data class SubdlSubtitle(
     val season: Int? = null,
     val episode: Int? = null
 ) {
+    val cleanDownloadUrl: String
+        get() {
+            val cleanPath = if (url.contains("?")) url.substringBefore("?") else url
+            return if (cleanPath.startsWith("http")) cleanPath else "https://dl.subdl.com$cleanPath"
+        }
+
     val fullDownloadUrl: String
-        get() = if (url.startsWith("http")) url else "https://dl.subdl.com$url"
+        get() = cleanDownloadUrl
 }

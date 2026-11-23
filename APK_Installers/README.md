@@ -26,8 +26,8 @@ APK_Installers/
 
 | Platform | Versi | File APK | Ukuran | Fitur Utama |
 | :--- | :---: | :--- | :---: | :--- |
-| 📺 **Android TV / Google TV** | **v1.0.9** | [`IDLIX-TV-Modified.Auto-Detect.apk`](https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.9/IDLIX-TV-Modified.Auto-Detect.apk) | ~22.1 MB | Leanback 10-foot UI, D-Pad Remote, Auto-Detect Server, Hardware Acceleration ExoPlayer |
-| 📱 **Android Mobile (HP/Tablet)** | **v1.0.9** | [`IDLIX-Mobile-Modified.Auto-Detect.apk`](https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.9/IDLIX-Mobile-Modified.Auto-Detect.apk) | ~23.2 MB | Material 3, Subtitle ID & EN Selector, Swipe Gestures, PiP |
+| 📺 **Android TV / Google TV** | **v1.0.10** | [`IDLIX-TV-Modified.Auto-Detect.apk`](https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.10/IDLIX-TV-Modified.Auto-Detect.apk) | ~22.1 MB | Leanback 10-foot UI, D-Pad Remote, Auto-Detect Server, Hardware Acceleration ExoPlayer |
+| 📱 **Android Mobile (HP/Tablet)** | **v1.0.10** | [`IDLIX-Mobile-Modified.Auto-Detect.apk`](https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.10/IDLIX-Mobile-Modified.Auto-Detect.apk) | ~23.2 MB | Material 3, Subtitle ID & EN Selector, Swipe Gestures, PiP |
 
 ---
 

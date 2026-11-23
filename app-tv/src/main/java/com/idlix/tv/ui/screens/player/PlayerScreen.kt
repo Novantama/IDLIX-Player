@@ -487,14 +487,24 @@ fun PlayerScreen(
                 exoPlayer.setMediaSource(newSource, currentPos)
                 val selector = exoPlayer.trackSelectionParameters.buildUpon()
                 if (track != null) {
+                    val lang = track.lang.lowercase()
+                    val langs = if (lang == "id" || lang == "in" || lang == "ind") {
+                        arrayOf("id", "in", "ind", "indonesian")
+                    } else {
+                        arrayOf(lang)
+                    }
                     selector
-                        .setPreferredTextLanguage(track.lang)
+                        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                        .setPreferredTextLanguages(*langs)
                         .setSelectUndeterminedTextLanguage(true)
                         .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                 } else {
-                    selector.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+                    selector
+                        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                 }
                 exoPlayer.trackSelectionParameters = selector.build()
+                exoPlayer.prepare()
                 if (wasPlaying) {
                     exoPlayer.play()
                 }

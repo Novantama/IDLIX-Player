@@ -772,18 +772,24 @@ class DetailViewModel(
 
             if (downloaded != null) {
                 val currentStream = _uiState.value.resolvedStream
-                if (currentStream != null) {
-                    val updatedSubs = currentStream.subtitles.toMutableList()
-                    updatedSubs.removeAll { it.path == downloaded.path }
-                    updatedSubs.add(0, downloaded)
-                    _uiState.value = _uiState.value.copy(
-                        resolvedStream = currentStream.copy(subtitles = updatedSubs),
-                        selectedSubtitle = downloaded,
-                        isSubtitleEnabled = true,
-                        isSubtitlePickerVisible = false
-                    )
-                }
+                val updatedSubs = currentStream?.subtitles?.toMutableList() ?: mutableListOf()
+                updatedSubs.removeAll { it.path == downloaded.path }
+                updatedSubs.add(0, downloaded)
+                _uiState.value = _uiState.value.copy(
+                    resolvedStream = currentStream?.copy(subtitles = updatedSubs),
+                    selectedSubtitle = downloaded,
+                    isSubtitleEnabled = true,
+                    isSubtitlePickerVisible = false,
+                    subdlError = null
+                )
                 onSubtitleReady(downloaded)
+            } else {
+                _uiState.value = _uiState.value.copy(
+                    subdlError = SubdlSearchResult.Error(
+                        SubdlSearchResult.Error.Reason.NETWORK,
+                        "Gagal mengunduh subtitle SubDL. Silakan pilih alternatif subtitle lain."
+                    )
+                )
             }
         }
     }

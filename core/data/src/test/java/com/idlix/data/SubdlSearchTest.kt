@@ -50,5 +50,21 @@ class SubdlSearchTest {
         assertTrue(url2.contains("season_number=2"))
         assertTrue(url2.contains("episode_number=4"))
     }
+
+    @Test
+    fun testCleanDownloadUrlStripsApiKeyToAvoidRateLimit() {
+        val sub1 = com.idlix.data.model.SubdlSubtitle(
+            url = "/subtitle/3799668-8724419.zip?api_key=subdl__VuGBV3ExlH8tW68l4wVEIsk6Mfnaxq1_FiONFN8Yg0",
+            language = "ID"
+        )
+        assertEquals("https://dl.subdl.com/subtitle/3799668-8724419.zip", sub1.cleanDownloadUrl)
+        assertEquals("https://dl.subdl.com/subtitle/3799668-8724419.zip", sub1.fullDownloadUrl)
+
+        val sub2 = com.idlix.data.model.SubdlSubtitle(
+            url = "https://dl.subdl.com/subtitle/12345.zip?foo=bar",
+            language = "EN"
+        )
+        assertEquals("https://dl.subdl.com/subtitle/12345.zip", sub2.cleanDownloadUrl)
+    }
 }
 

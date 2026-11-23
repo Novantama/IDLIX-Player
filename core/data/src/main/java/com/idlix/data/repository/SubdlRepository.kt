@@ -194,12 +194,23 @@ object SubdlRepository {
         context: Context
     ): SubtitleTrack? = withContext(Dispatchers.IO) {
         try {
-            val zipUrl = sub.fullDownloadUrl
-            val prefix = "subdl_${sub.language ?: "id"}_${System.currentTimeMillis()}"
-            val extractedFile = downloadAndExtractSrt(zipUrl, context, prefix) ?: return@withContext null
-
             val isIndo = sub.language.equals("ID", ignoreCase = true) || sub.lang.equals("indonesian", ignoreCase = true)
             val langCode = if (isIndo) "id" else (sub.language?.lowercase() ?: "en")
+            val prefix = "subdl_${langCode}_${System.currentTimeMillis()}"
+
+            // SubDL direct download: dl.subdl.com enforces a 50/day limit on ?api_key= urls,
+            // but provides direct zip access on clean URLs without api_key!
+            val primaryUrl = sub.cleanDownloadUrl
+            val fallbackUrl = if (sub.url.startsWith("http")) sub.url else "https://dl.subdl.com${sub.url}"
+
+            val extractedFile = downloadAndExtractSrt(
+                primaryUrl = primaryUrl,
+                fallbackUrl = fallbackUrl,
+                context = context,
+                filePrefix = prefix,
+                isIndo = isIndo
+            ) ?: return@withContext null
+
             val releaseTag = sub.author?.let { " ($it)" } ?: ""
             val label = if (isIndo) "Indonesian [SubDL]$releaseTag" else "English [SubDL]$releaseTag"
 
@@ -256,41 +267,101 @@ object SubdlRepository {
         context = context
     )
 
-    private fun downloadAndExtractSrt(zipUrl: String, context: Context, filePrefix: String): File? {
+    private fun downloadAndExtractSrt(
+        primaryUrl: String,
+        fallbackUrl: String?,
+        context: Context,
+        filePrefix: String,
+        isIndo: Boolean
+    ): File? {
+        // Attempt 1: Clean URL (without ?api_key= to bypass 50/day rate-limit)
+        var file = tryDownloadAndExtractZip(primaryUrl, context, filePrefix, isIndo)
+        if (file != null) return file
+
+        // Attempt 2: Fallback URL if different
+        if (!fallbackUrl.isNullOrBlank() && fallbackUrl != primaryUrl) {
+            file = tryDownloadAndExtractZip(fallbackUrl, context, filePrefix, isIndo)
+            if (file != null) return file
+        }
+
+        return null
+    }
+
+    private fun tryDownloadAndExtractZip(
+        url: String,
+        context: Context,
+        filePrefix: String,
+        isIndo: Boolean
+    ): File? {
         return try {
             val req = Request.Builder()
-                .url(zipUrl)
-                .header("User-Agent", "Mozilla/5.0 (Android TV; Idlix)")
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .header("Referer", "https://subdl.com/")
+                .header("Accept", "*/*")
                 .build()
 
             val res = ApiClient.okHttpClient.newCall(req).execute()
-            if (!res.isSuccessful) return null
+            if (!res.isSuccessful) {
+                Log.w(TAG, "Download zip failed with HTTP ${res.code} for: $url")
+                return null
+            }
 
-            val inputStream = res.body?.byteStream() ?: return null
-            val zipStream = ZipInputStream(inputStream)
+            val body = res.body ?: return null
+            val bytes = body.bytes()
+            if (bytes.isEmpty()) return null
+
             val subDir = File(context.cacheDir, "subtitles").apply { mkdirs() }
 
-            var entry = zipStream.nextEntry
-            var targetFile: File? = null
+            // Check if zip archive (magic bytes PK 0x50 0x4B)
+            if (bytes.size >= 4 && bytes[0] == 0x50.toByte() && bytes[1] == 0x4B.toByte()) {
+                val zipStream = ZipInputStream(bytes.inputStream())
+                val entries = mutableListOf<Pair<String, ByteArray>>()
 
-            while (entry != null) {
-                val name = entry.name.lowercase()
-                if (name.endsWith(".srt") || name.endsWith(".vtt")) {
-                    val ext = if (name.endsWith(".vtt")) ".vtt" else ".srt"
-                    val outFile = File(subDir, "$filePrefix$ext")
-                    FileOutputStream(outFile).use { fos ->
-                        zipStream.copyTo(fos)
+                var entry = zipStream.nextEntry
+                while (entry != null) {
+                    val entryName = entry.name
+                    val lower = entryName.lowercase()
+                    if (!entry.isDirectory &&
+                        !entryName.contains("__MACOSX") &&
+                        !entryName.startsWith(".") &&
+                        !entryName.contains("/.")
+                    ) {
+                        if (lower.endsWith(".srt") || lower.endsWith(".vtt")) {
+                            entries.add(entryName to zipStream.readBytes())
+                        }
                     }
-                    targetFile = outFile
-                    break
+                    zipStream.closeEntry()
+                    entry = zipStream.nextEntry
                 }
-                zipStream.closeEntry()
-                entry = zipStream.nextEntry
+                zipStream.close()
+
+                if (entries.isNotEmpty()) {
+                    val chosen = if (isIndo) {
+                        entries.firstOrNull { (name, _) ->
+                            val l = name.lowercase()
+                            l.contains("ind") || l.contains("id") || l.contains("bahasa")
+                        } ?: entries.first()
+                    } else {
+                        entries.first()
+                    }
+
+                    val ext = if (chosen.first.lowercase().endsWith(".vtt")) ".vtt" else ".srt"
+                    val outFile = File(subDir, "$filePrefix$ext")
+                    outFile.writeBytes(chosen.second)
+                    return outFile
+                }
+            } else {
+                // Raw srt or vtt stream
+                val isVtt = url.contains(".vtt", ignoreCase = true)
+                val ext = if (isVtt) ".vtt" else ".srt"
+                val outFile = File(subDir, "$filePrefix$ext")
+                outFile.writeBytes(bytes)
+                return outFile
             }
-            zipStream.close()
-            targetFile
+            null
         } catch (e: Exception) {
-            Log.e(TAG, "Error extracting zip from $zipUrl: ${e.message}")
+            Log.e(TAG, "Error extracting zip from $url: ${e.message}")
             null
         }
     }
