@@ -253,6 +253,21 @@ object AppUpdateManager {
                             return
                         }
                     }
+
+                    // Fallback to local server APK stream if GitHub download fails or repo is private
+                    val localBase = ApiClient.getBaseUrl().trimEnd('/')
+                    if (localBase.isNotBlank() &&
+                        !localBase.contains("idlixku.com", ignoreCase = true) &&
+                        !localBase.contains("localhost", ignoreCase = true)
+                    ) {
+                        val plat = if (platform == AppPlatform.TV) "tv" else "mobile"
+                        val localApkUrl = "$localBase/api/update/apk/$plat"
+                        if (downloadUrl != localApkUrl) {
+                            downloadApk(context, localApkUrl, latestVersion, targetFile, platform)
+                            return
+                        }
+                    }
+
                     _state.value = AppUpdateState.Error(
                         errorType = AppUpdateErrorType.HTTP_ERROR,
                         httpCode = response.code
