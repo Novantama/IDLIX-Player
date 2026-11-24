@@ -1,8 +1,10 @@
 package com.idlix.mobile.ui.screens.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,9 +18,12 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
@@ -43,6 +48,7 @@ import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +60,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -84,7 +91,17 @@ fun SettingsScreen(
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val updateState by AppUpdateManager.state.collectAsState()
+    val accountState by viewModel.accountState.collectAsState()
     var isSubdlKeyVisible by remember { mutableStateOf(false) }
+    var inputEmail by remember { mutableStateOf(accountState.email) }
+    var inputPassword by remember { mutableStateOf("") }
+    var isPasswordVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(accountState.email) {
+        if (inputEmail.isEmpty() && accountState.email.isNotEmpty()) {
+            inputEmail = accountState.email
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -238,6 +255,221 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(stringResource(R.string.reset_to_default), color = TextDim, fontSize = 12.sp)
+                    }
+                }
+            }
+
+            // Akun IDLIX Card (Sinkronisasi Profil & VIP)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Icon(
+                                imageVector = Icons.Default.AccountCircle,
+                                contentDescription = null,
+                                tint = if (accountState.isLoggedIn) Color(0xFF4CAF50) else TextWhite,
+                                modifier = Modifier.size(26.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = "Akun IDLIX",
+                                    color = TextWhite,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Sinkronisasi profil, daftar favorit, dan akun VIP",
+                                    color = TextMuted,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+
+                        // Status Pill
+                        val statusColor = if (accountState.isLoggedIn) Color(0xFF4CAF50) else TextMuted
+                        val statusBg = if (accountState.isLoggedIn) Color(0x224CAF50) else Color(0x1FFFFFFF)
+                        Box(
+                            modifier = Modifier
+                                .background(statusBg, RoundedCornerShape(999.dp))
+                                .border(1.dp, statusColor.copy(alpha = 0.5f), RoundedCornerShape(999.dp))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .background(statusColor, RoundedCornerShape(3.dp))
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (accountState.isLoggedIn) "Terhubung" else "Belum terhubung",
+                                    color = statusColor,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+
+                    if (accountState.isLoggedIn) {
+                        // Logged in UI
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(SurfaceVariantDark, RoundedCornerShape(8.dp))
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(text = "Email Akun:", color = TextDim, fontSize = 12.sp)
+                                Text(
+                                    text = accountState.email.ifBlank { inputEmail },
+                                    color = TextWhite,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(text = "Status Koneksi:", color = TextDim, fontSize = 12.sp)
+                                Text(
+                                    text = accountState.status.ifBlank { "Berhasil terhubung" },
+                                    color = Color(0xFF4CAF50),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            if (accountState.plan.isNotBlank()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(text = "Status Akses:", color = TextDim, fontSize = 12.sp)
+                                    Text(
+                                        text = accountState.plan,
+                                        color = Color(0xFF64B5F6),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { viewModel.refreshAccountStatus() },
+                                enabled = !uiState.isRefreshingAccount,
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                if (uiState.isRefreshingAccount) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = IdlixRed)
+                                } else {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Perbarui", color = TextWhite, fontSize = 12.sp)
+                                }
+                            }
+
+                            Button(
+                                onClick = { viewModel.logoutIdlix() },
+                                colors = ButtonDefaults.buttonColors(containerColor = IdlixRed.copy(alpha = 0.8f)),
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Keluar", fontSize = 12.sp)
+                            }
+                        }
+                    } else {
+                        // Not logged in UI
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedTextField(
+                                value = inputEmail,
+                                onValueChange = { inputEmail = it },
+                                label = { Text("Email atau Username IDLIX", color = TextDim) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = SurfaceVariantDark,
+                                    unfocusedContainerColor = SurfaceVariantDark,
+                                    focusedBorderColor = IdlixRed,
+                                    unfocusedBorderColor = SurfaceVariantDark,
+                                    focusedTextColor = TextWhite,
+                                    unfocusedTextColor = TextWhite
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            OutlinedTextField(
+                                value = inputPassword,
+                                onValueChange = { inputPassword = it },
+                                label = { Text("Kata Sandi", color = TextDim) },
+                                singleLine = true,
+                                visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation('*'),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                trailingIcon = {
+                                    IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                                        Icon(
+                                            imageVector = if (isPasswordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                            contentDescription = if (isPasswordVisible) "Sembunyikan sandi" else "Tampilkan sandi",
+                                            tint = TextDim
+                                        )
+                                    }
+                                },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = SurfaceVariantDark,
+                                    unfocusedContainerColor = SurfaceVariantDark,
+                                    focusedBorderColor = IdlixRed,
+                                    unfocusedBorderColor = SurfaceVariantDark,
+                                    focusedTextColor = TextWhite,
+                                    unfocusedTextColor = TextWhite
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            if (uiState.loginAccountError != null) {
+                                Text(
+                                    text = uiState.loginAccountError ?: "",
+                                    color = IdlixRed,
+                                    fontSize = 12.sp
+                                )
+                            }
+
+                            Button(
+                                onClick = { viewModel.loginIdlix(inputEmail, inputPassword) },
+                                enabled = !uiState.isLoggingInAccount,
+                                colors = ButtonDefaults.buttonColors(containerColor = IdlixRed),
+                                modifier = Modifier.fillMaxWidth(),
+                                contentPadding = PaddingValues(vertical = 12.dp)
+                            ) {
+                                if (uiState.isLoggingInAccount) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = TextWhite)
+                                } else {
+                                    Text("Masuk ke Akun IDLIX", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                }
+                            }
+                        }
                     }
                 }
             }

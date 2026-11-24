@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.idlix.data.api.ApiClient
+import com.idlix.data.local.IdlixAccountStore
+import com.idlix.data.model.IdlixAccount
 import com.idlix.data.repository.SubdlRepository
 import com.idlix.mobile.R
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +28,10 @@ data class SettingsUiState(
     val subdlTestResult: String? = null,
     val isTestingDns: Boolean = false,
     val dnsTestResult: String? = null,
-    val cacheCleared: Boolean = false
+    val cacheCleared: Boolean = false,
+    val isLoggingInAccount: Boolean = false,
+    val loginAccountError: String? = null,
+    val isRefreshingAccount: Boolean = false
 )
 
 class SettingsViewModel(
@@ -222,5 +227,37 @@ class SettingsViewModel(
                 }
             } catch (_: Exception) {}
         }
+    }
+
+    val accountState: StateFlow<IdlixAccount> = IdlixAccountStore.account
+
+    fun loginIdlix(ident: String, pass: String) {
+        val cleanIdent = ident.trim()
+        val cleanPass = pass.trim()
+        if (cleanIdent.isBlank() || cleanPass.isBlank()) {
+            _uiState.value = _uiState.value.copy(loginAccountError = "Email / Username dan Password wajib diisi")
+            return
+        }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoggingInAccount = true, loginAccountError = null)
+            val res = ApiClient.loginIdlix(cleanIdent, cleanPass)
+            _uiState.value = _uiState.value.copy(
+                isLoggingInAccount = false,
+                loginAccountError = res.exceptionOrNull()?.localizedMessage
+            )
+        }
+    }
+
+    fun refreshAccountStatus() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isRefreshingAccount = true)
+            ApiClient.refreshIdlixAccountStatus()
+            _uiState.value = _uiState.value.copy(isRefreshingAccount = false)
+        }
+    }
+
+    fun logoutIdlix() {
+        ApiClient.logoutIdlix()
+        _uiState.value = _uiState.value.copy(loginAccountError = null)
     }
 }
