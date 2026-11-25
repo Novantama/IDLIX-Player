@@ -2,6 +2,7 @@ package com.idlix.mobile.ui.screens.detail
 
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
@@ -73,6 +74,7 @@ import coil.compose.AsyncImage
 import com.idlix.data.model.CastMember
 import com.idlix.data.model.EpisodeItem
 import com.idlix.mobile.R
+import com.idlix.mobile.player.PipController
 import com.idlix.mobile.ui.screens.detail.components.MobilePlayerView
 import com.idlix.mobile.ui.screens.detail.components.SubtitleModalBottomSheet
 import com.idlix.mobile.ui.screens.detail.components.findActivity
@@ -95,9 +97,10 @@ fun DetailScreen(
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
+    val isInPipMode by PipController.isInPipMode.collectAsState()
     var isFullscreen by rememberSaveable { mutableStateOf(false) }
+    val isPlayerExpanded = isFullscreen || isInPipMode
     var isOverviewExpanded by remember { mutableStateOf(false) }
-    var isBookmarked by rememberSaveable { mutableStateOf(false) }
     var isEditingPosition by remember { mutableStateOf(false) }
 
     val activity = remember(context) { context.findActivity() }
@@ -123,11 +126,16 @@ fun DetailScreen(
         }
     }
 
-    // Cleanup orientation and system bars on exit
+    // Cleanup orientation, system bars, and brightness override on exit
     DisposableEffect(Unit) {
         onDispose {
             activity?.let { act ->
                 act.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                val lp = act.window.attributes
+                if (lp.screenBrightness != WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE) {
+                    lp.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                    act.window.attributes = lp
+                }
                 val windowInsetsController = WindowCompat.getInsetsController(act.window, act.window.decorView)
                 windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
             }
@@ -187,9 +195,9 @@ fun DetailScreen(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            // Player Box (Inline 16:9 or Fullscreen Landscape)
+            // Player Box (Inline 16:9 or Fullscreen Landscape / PiP)
             Box(
-                modifier = if (isFullscreen) {
+                modifier = if (isPlayerExpanded) {
                     Modifier.fillMaxSize()
                 } else {
                     Modifier
@@ -231,8 +239,8 @@ fun DetailScreen(
                 )
             }
 
-            // Scrollable Content (hidden when in fullscreen)
-            if (!isFullscreen) {
+            // Scrollable Content (hidden when in fullscreen or PiP)
+            if (!isPlayerExpanded) {
                 if (uiState.isLoadingDetail) {
                     Box(
                         modifier = Modifier
@@ -455,7 +463,7 @@ fun DetailScreen(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .clickable { isBookmarked = !isBookmarked }
+                                        .clickable { viewModel.toggleBookmark(contentType, slug) }
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(vertical = 10.dp),
@@ -463,14 +471,14 @@ fun DetailScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
-                                            imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                                            imageVector = if (uiState.isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                                             contentDescription = null,
-                                            tint = if (isBookmarked) IdlixRed else Color.White,
+                                            tint = if (uiState.isBookmarked) IdlixRed else Color.White,
                                             modifier = Modifier.size(18.dp)
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            text = if (isBookmarked) stringResource(R.string.in_my_list) else stringResource(R.string.my_list),
+                                            text = if (uiState.isBookmarked) stringResource(R.string.in_my_list) else stringResource(R.string.my_list),
                                             color = TextWhite,
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Medium
@@ -486,7 +494,8 @@ fun DetailScreen(
                                         .clip(RoundedCornerShape(8.dp))
                                         .clickable {
                                             val shareTitle = context.getString(R.string.share)
-                                            val shareText = context.getString(R.string.share_movie_text, title, "https://idlixku.com/$contentType/$slug")
+                                            val shareType = if (contentType == "episode" || contentType == "tv_series") "series" else contentType
+                                            val shareText = context.getString(R.string.share_movie_text, title, "https://idlixku.com/$shareType/$slug")
                                             val sendIntent = Intent().apply {
                                                 action = Intent.ACTION_SEND
                                                 putExtra(Intent.EXTRA_TEXT, shareText)
@@ -671,7 +680,7 @@ fun DetailScreen(
 
         // Subtitle Picker Modal Bottom Sheet
         SubtitleModalBottomSheet(
-            isVisible = uiState.isSubtitlePickerVisible,
+            isVisible = uiState.isSubtitlePickerVisible && !isInPipMode,
             availableSubtitles = uiState.resolvedStream?.subtitles ?: emptyList(),
             selectedSubtitle = uiState.selectedSubtitle,
             isSubtitleEnabled = uiState.isSubtitleEnabled,
@@ -709,7 +718,7 @@ fun DetailScreen(
         )
 
         // Fullscreen in-player position editor overlay
-        if (isEditingPosition) {
+        if (isEditingPosition && !isInPipMode) {
             SubtitlePositionEditorScreen(
                 onBack = { isEditingPosition = false }
             )

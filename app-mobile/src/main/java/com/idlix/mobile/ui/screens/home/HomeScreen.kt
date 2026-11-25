@@ -66,70 +66,72 @@ fun HomeScreen(
             .fillMaxSize()
             .background(BackgroundDark)
     ) {
-        if (uiState.isLoading && !uiState.isRefreshing) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = IdlixRed)
-            }
-        } else if (uiState.error != null && uiState.bannerMovies.isEmpty() && uiState.continueWatching.isEmpty()) {
-            Box(
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Always keep Header Bar (Logo & Settings Button) reachable even on error/loading
+            Row(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = stringResource(R.string.unable_to_connect),
-                        color = TextWhite,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = uiState.error ?: "",
-                        color = TextMuted,
-                        fontSize = 12.sp
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = { viewModel.loadData() },
-                        colors = ButtonDefaults.buttonColors(containerColor = IdlixRed)
-                    ) {
-                        Icon(Icons.Filled.Refresh, contentDescription = null)
-                        Spacer(modifier = Modifier.size(6.dp))
-                        Text(stringResource(R.string.retry))
-                    }
-                }
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-            ) {
-                // Header Bar (Logo & Settings Button)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.idlix_logo),
-                        contentDescription = "IDLIX Logo",
-                        modifier = Modifier.height(28.dp)
-                    )
+                Image(
+                    painter = painterResource(id = R.drawable.idlix_logo),
+                    contentDescription = "IDLIX Logo",
+                    modifier = Modifier.height(28.dp)
+                )
 
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(
-                            imageVector = Icons.Filled.Settings,
-                            contentDescription = stringResource(R.string.settings),
-                            tint = TextWhite
+                IconButton(onClick = onNavigateToSettings) {
+                    Icon(
+                        imageVector = Icons.Filled.Settings,
+                        contentDescription = stringResource(R.string.settings),
+                        tint = TextWhite
+                    )
+                }
+            }
+
+            if (uiState.isLoading && !uiState.isRefreshing) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = IdlixRed)
+                }
+            } else if (uiState.error != null && uiState.bannerMovies.isEmpty() && uiState.continueWatching.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = stringResource(R.string.unable_to_connect),
+                            color = TextWhite,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
                         )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = uiState.error ?: "",
+                            color = TextMuted,
+                            fontSize = 12.sp
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = { viewModel.loadData() },
+                            colors = ButtonDefaults.buttonColors(containerColor = IdlixRed)
+                        ) {
+                            Icon(Icons.Filled.Refresh, contentDescription = null)
+                            Spacer(modifier = Modifier.size(6.dp))
+                            Text(stringResource(R.string.retry))
+                        }
                     }
                 }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                ) {
 
                 if (uiState.bannerMovies.isNotEmpty()) {
                     HeroBannerPager(
@@ -228,6 +230,7 @@ fun HomeScreen(
                 }
 
                 Spacer(modifier = Modifier.height(40.dp))
+            }
             }
         }
     }

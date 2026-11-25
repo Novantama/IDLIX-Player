@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -97,6 +98,12 @@ fun SubtitlePositionEditorContent(
             .focusable()
             .onKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyDown) {
+                    if (keyEvent.key == Key.Back) {
+                        onDismiss()
+                        return@onKeyEvent true
+                    }
+                    if (!isSurfaceFocused) return@onKeyEvent false
+
                     val isRepeating = keyEvent.nativeKeyEvent.repeatCount > 0
                     val step = if (isRepeating) 0.035f else 0.01f
 
@@ -127,10 +134,6 @@ fun SubtitlePositionEditorContent(
                         Key.DirectionCenter, Key.Enter -> {
                             state.commit()
                             onSaved()
-                            return@onKeyEvent true
-                        }
-                        Key.Back -> {
-                            onDismiss()
                             return@onKeyEvent true
                         }
                     }
@@ -206,7 +209,8 @@ fun SubtitlePositionEditorContent(
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp),
+                .padding(bottom = 24.dp)
+                .focusProperties { up = surfaceFocusRequester },
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

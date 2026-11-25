@@ -70,6 +70,7 @@ fun TvNavDrawer(
     selectedItem: NavItem,
     onItemSelected: (NavItem) -> Unit,
     modifier: Modifier = Modifier,
+    showDrawer: Boolean = true,
     content: @Composable () -> Unit
 ) {
     var isExpanded by remember { mutableStateOf(false) }
@@ -79,8 +80,8 @@ fun TvNavDrawer(
         label = "drawerWidth"
     )
 
-    LaunchedEffect(Unit) {
-        if (selectedItem == NavItem.HOME) {
+    LaunchedEffect(showDrawer) {
+        if (showDrawer && selectedItem == NavItem.HOME) {
             try {
                 homeFocusRequester.requestFocus()
             } catch (_: Exception) {}
@@ -92,86 +93,88 @@ fun TvNavDrawer(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 64.dp)
+                .then(if (showDrawer) Modifier.padding(start = 64.dp) else Modifier)
         ) {
             content()
         }
 
-        if (isExpanded) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.5f))
-            )
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(drawerWidth)
-                .background(NetflixBlack.copy(alpha = if (isExpanded) 0.98f else 0.92f))
-                .padding(vertical = 24.dp, horizontal = 10.dp)
-                .onFocusChanged { isExpanded = it.hasFocus },
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.Start
-        ) {
-            // Official IDLIX Logo
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 12.dp),
-                contentAlignment = if (isExpanded) Alignment.CenterStart else Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.idlix_logo),
-                    contentDescription = "IDLIX",
-                    contentScale = ContentScale.Fit,
+        if (showDrawer) {
+            if (isExpanded) {
+                Box(
                     modifier = Modifier
-                        .height(if (isExpanded) 28.dp else 16.dp)
-                        .then(if (isExpanded) Modifier.padding(start = 8.dp) else Modifier)
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f))
                 )
             }
 
-            // Navigation items
-            NavItem.values().forEach { item ->
-                val isSelected = item == selectedItem
-                var itemFocused by remember { mutableStateOf(false) }
-
-                Card(
-                    onClick = { onItemSelected(item) },
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(drawerWidth)
+                    .background(NetflixBlack.copy(alpha = if (isExpanded) 0.98f else 0.92f))
+                    .padding(vertical = 24.dp, horizontal = 10.dp)
+                    .onFocusChanged { isExpanded = it.hasFocus },
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.Start
+            ) {
+                // Official IDLIX Logo
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
-                        .then(if (item == NavItem.HOME) Modifier.focusRequester(homeFocusRequester) else Modifier)
-                        .onFocusChanged { itemFocused = it.isFocused },
-                    scale = CardDefaults.scale(focusedScale = 1.0f),
-                    glow = CardDefaults.glow(focusedGlow = Glow.None),
-                    shape = CardDefaults.shape(shape = RoundedCornerShape(8.dp)),
-                    colors = CardDefaults.colors(
-                        containerColor = if (itemFocused) NetflixDarkCard else Color.Transparent,
-                        focusedContainerColor = NetflixRed
-                    )
+                        .padding(bottom = 12.dp),
+                    contentAlignment = if (isExpanded) Alignment.CenterStart else Alignment.Center
                 ) {
-                    Row(
+                    Image(
+                        painter = painterResource(R.drawable.idlix_logo),
+                        contentDescription = "IDLIX",
+                        contentScale = ContentScale.Fit,
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = item.icon,
-                            contentDescription = stringResource(item.labelRes),
-                            tint = if (itemFocused || isSelected) NetflixWhite else NetflixLightGray,
-                            modifier = Modifier.size(20.dp)
+                            .height(if (isExpanded) 28.dp else 16.dp)
+                            .then(if (isExpanded) Modifier.padding(start = 8.dp) else Modifier)
+                    )
+                }
+
+                // Navigation items
+                NavItem.values().forEach { item ->
+                    val isSelected = item == selectedItem
+                    var itemFocused by remember { mutableStateOf(false) }
+
+                    Card(
+                        onClick = { onItemSelected(item) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp)
+                            .then(if (item == NavItem.HOME) Modifier.focusRequester(homeFocusRequester) else Modifier)
+                            .onFocusChanged { itemFocused = it.isFocused },
+                        scale = CardDefaults.scale(focusedScale = 1.0f),
+                        glow = CardDefaults.glow(focusedGlow = Glow.None),
+                        shape = CardDefaults.shape(shape = RoundedCornerShape(8.dp)),
+                        colors = CardDefaults.colors(
+                            containerColor = if (itemFocused) NetflixDarkCard else Color.Transparent,
+                            focusedContainerColor = NetflixRed
                         )
-                        if (isExpanded) {
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = stringResource(item.labelRes),
-                                color = if (itemFocused || isSelected) NetflixWhite else NetflixLightGray,
-                                fontSize = 13.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = stringResource(item.labelRes),
+                                tint = if (itemFocused || isSelected) NetflixWhite else NetflixLightGray,
+                                modifier = Modifier.size(20.dp)
                             )
+                            if (isExpanded) {
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = stringResource(item.labelRes),
+                                    color = if (itemFocused || isSelected) NetflixWhite else NetflixLightGray,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
                         }
                     }
                 }

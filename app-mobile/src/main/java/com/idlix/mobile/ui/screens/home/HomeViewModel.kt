@@ -8,6 +8,8 @@ import com.idlix.data.model.MovieItem
 import com.idlix.data.model.SeriesItem
 import com.idlix.data.model.WatchHistoryItem
 import com.idlix.data.repository.IdlixRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +39,7 @@ class HomeViewModel(
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    private var loadJob: Job? = null
 
     init {
         // Collect unfinished watch history
@@ -55,7 +58,8 @@ class HomeViewModel(
     }
 
     fun loadData() {
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             if (_uiState.value.bannerMovies.isEmpty()) {
                 _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             }
@@ -95,6 +99,8 @@ class HomeViewModel(
                     comedyMovies = comedy,
                     error = null
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,

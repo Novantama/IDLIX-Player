@@ -16,7 +16,9 @@ import com.idlix.data.model.SearchResultItem
 import com.idlix.data.model.SeriesDetail
 import com.idlix.data.model.SeriesItem
 import com.idlix.data.model.SeriesListResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -177,20 +179,28 @@ class IdlixRepository(
             return
         }
 
-        val deferred = repoScope.async {
+        lateinit var deferred: Deferred<Result<ResolvedPlayback>>
+        deferred = repoScope.async(start = CoroutineStart.LAZY) {
             try {
                 val res = resolveStreamInternal(contentType, contentId, contentTitle, onCountdown = null)
                 res.onSuccess { resolved ->
                     playbackCache[cacheKey] = CachedPlayback(resolved)
                 }
                 res
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Result.failure(e)
             } finally {
-                activePrewarms.remove(cacheKey)
+                activePrewarms.remove(cacheKey, deferred)
             }
         }
-        activePrewarms[cacheKey] = deferred
+        val existing = activePrewarms.putIfAbsent(cacheKey, deferred)
+        if (existing == null) {
+            deferred.start()
+        } else {
+            deferred.cancel()
+        }
     }
 
     suspend fun resolveStream(
@@ -217,7 +227,9 @@ class IdlixRepository(
                     onCountdown?.invoke(0)
                     return@withContext res
                 }
-            } catch (e: Exception) {}
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {}
         }
 
         val res = resolveStreamInternal(contentType, contentId, contentTitle, onCountdown)
@@ -325,6 +337,8 @@ class IdlixRepository(
                         validClaimRes = res
                         break
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (_: Exception) {}
                 delay(600)
             }
@@ -384,6 +398,8 @@ class IdlixRepository(
                     videoId = claimRes.videoId
                 )
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
         }

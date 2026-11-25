@@ -3,6 +3,7 @@ package com.idlix.mobile.ui.screens.settings
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import coil.imageLoader
 import com.idlix.data.api.ApiClient
 import com.idlix.data.local.IdlixAccountStore
 import com.idlix.data.model.IdlixAccount
@@ -24,10 +25,13 @@ data class SettingsUiState(
     val selectedDnsProvider: String = ApiClient.DEFAULT_DNS_PROVIDER,
     val isTestingBackend: Boolean = false,
     val backendTestResult: String? = null,
+    val isBackendTestSuccess: Boolean = false,
     val isTestingSubdl: Boolean = false,
     val subdlTestResult: String? = null,
+    val isSubdlTestSuccess: Boolean = false,
     val isTestingDns: Boolean = false,
     val dnsTestResult: String? = null,
+    val isDnsTestSuccess: Boolean = false,
     val cacheCleared: Boolean = false,
     val isLoggingInAccount: Boolean = false,
     val loginAccountError: String? = null,
@@ -72,7 +76,10 @@ class SettingsViewModel(
         val app = getApplication<Application>()
         val targetUrl = _uiState.value.backendUrl.trim()
         if (targetUrl.isBlank()) {
-            _uiState.value = _uiState.value.copy(backendTestResult = app.getString(R.string.url_empty_error))
+            _uiState.value = _uiState.value.copy(
+                backendTestResult = app.getString(R.string.url_empty_error),
+                isBackendTestSuccess = false
+            )
             return
         }
         ApiClient.setBaseUrl(targetUrl)
@@ -80,7 +87,8 @@ class SettingsViewModel(
         _uiState.value = _uiState.value.copy(
             activeBackendUrl = newActive,
             backendUrl = newActive,
-            backendTestResult = app.getString(R.string.url_saved_success)
+            backendTestResult = app.getString(R.string.url_saved_success),
+            isBackendTestSuccess = true
         )
     }
 
@@ -92,7 +100,8 @@ class SettingsViewModel(
         _uiState.value = _uiState.value.copy(
             activeSubdlKey = newActive,
             subdlKey = newActive,
-            subdlTestResult = app.getString(R.string.subdl_key_saved_success)
+            subdlTestResult = app.getString(R.string.subdl_key_saved_success),
+            isSubdlTestSuccess = true
         )
     }
 
@@ -102,23 +111,26 @@ class SettingsViewModel(
         if (targetUrl.isBlank()) {
             _uiState.value = _uiState.value.copy(
                 isTestingBackend = false,
-                backendTestResult = app.getString(R.string.url_empty_error)
+                backendTestResult = app.getString(R.string.url_empty_error),
+                isBackendTestSuccess = false
             )
             return
         }
         if (!targetUrl.startsWith("http://", ignoreCase = true) && !targetUrl.startsWith("https://", ignoreCase = true)) {
             _uiState.value = _uiState.value.copy(
                 isTestingBackend = false,
-                backendTestResult = app.getString(R.string.url_invalid_protocol)
+                backendTestResult = app.getString(R.string.url_invalid_protocol),
+                isBackendTestSuccess = false
             )
             return
         }
 
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isTestingBackend = true, backendTestResult = null)
+            _uiState.value = _uiState.value.copy(isTestingBackend = true, backendTestResult = null, isBackendTestSuccess = false)
             val result = ApiClient.testBackendConnection(targetUrl)
             _uiState.value = _uiState.value.copy(
                 isTestingBackend = false,
+                isBackendTestSuccess = result.isSuccess,
                 backendTestResult = result.fold(
                     onSuccess = { it },
                     onFailure = { "Failed: ${it.localizedMessage ?: "Unknown network error"}" }
@@ -131,7 +143,8 @@ class SettingsViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(
                 isTestingBackend = true,
-                backendTestResult = "Mencari server IDLIX di jaringan lokal..."
+                backendTestResult = "Mencari server IDLIX di jaringan lokal...",
+                isBackendTestSuccess = true
             )
             val result = ApiClient.autoDetectServer()
             result.fold(
@@ -141,13 +154,15 @@ class SettingsViewModel(
                         isTestingBackend = false,
                         backendUrl = detectedUrl,
                         activeBackendUrl = detectedUrl,
-                        backendTestResult = "Server ditemukan & disimpan: $detectedUrl"
+                        backendTestResult = "Server ditemukan & disimpan: $detectedUrl",
+                        isBackendTestSuccess = true
                     )
                 },
                 onFailure = { error ->
                     _uiState.value = _uiState.value.copy(
                         isTestingBackend = false,
-                        backendTestResult = "Gagal: ${error.localizedMessage ?: "Server tidak ditemukan"}"
+                        backendTestResult = "Gagal: ${error.localizedMessage ?: "Server tidak ditemukan"}",
+                        isBackendTestSuccess = false
                     )
                 }
             )
@@ -160,16 +175,18 @@ class SettingsViewModel(
         if (targetKey.isBlank()) {
             _uiState.value = _uiState.value.copy(
                 isTestingSubdl = false,
-                subdlTestResult = app.getString(R.string.subdl_key_empty_error)
+                subdlTestResult = app.getString(R.string.subdl_key_empty_error),
+                isSubdlTestSuccess = false
             )
             return
         }
 
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isTestingSubdl = true, subdlTestResult = null)
+            _uiState.value = _uiState.value.copy(isTestingSubdl = true, subdlTestResult = null, isSubdlTestSuccess = false)
             val result = SubdlRepository.testApiKey(targetKey)
             _uiState.value = _uiState.value.copy(
                 isTestingSubdl = false,
+                isSubdlTestSuccess = result.isSuccess,
                 subdlTestResult = result.fold(
                     onSuccess = { it },
                     onFailure = { "Failed: ${it.localizedMessage ?: "Unknown network error"}" }
@@ -190,7 +207,8 @@ class SettingsViewModel(
         _uiState.value = _uiState.value.copy(
             activeDnsProvider = active,
             selectedDnsProvider = active,
-            dnsTestResult = app.getString(R.string.dns_saved_success)
+            dnsTestResult = app.getString(R.string.dns_saved_success),
+            isDnsTestSuccess = true
         )
     }
 
@@ -202,10 +220,11 @@ class SettingsViewModel(
     fun testDns() {
         val target = _uiState.value.selectedDnsProvider
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isTestingDns = true, dnsTestResult = null)
+            _uiState.value = _uiState.value.copy(isTestingDns = true, dnsTestResult = null, isDnsTestSuccess = false)
             val result = ApiClient.testDns(target)
             _uiState.value = _uiState.value.copy(
                 isTestingDns = false,
+                isDnsTestSuccess = result.isSuccess,
                 dnsTestResult = result.fold(
                     onSuccess = { it },
                     onFailure = { "Failed: ${it.localizedMessage ?: "DNS resolution failed"}" }
@@ -218,11 +237,9 @@ class SettingsViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val context = getApplication<Application>()
             try {
-                val cacheDir = context.cacheDir.resolve("image_cache")
-                if (cacheDir.exists()) {
-                    cacheDir.deleteRecursively()
-                }
+                context.imageLoader.diskCache?.clear()
                 withContext(Dispatchers.Main) {
+                    context.imageLoader.memoryCache?.clear()
                     _uiState.value = _uiState.value.copy(cacheCleared = true)
                 }
             } catch (_: Exception) {}

@@ -52,7 +52,8 @@ data class PlayerUiState(
     val isUsingSessionOverride: Boolean = false,
     val isAppearancePanelOpen: Boolean = false,
     val nextEpisode: NextEpisodeInfo? = null,
-    val isNextEpisodeDismissed: Boolean = false
+    val isNextEpisodeDismissed: Boolean = false,
+    val activeContentId: String = ""
 )
 
 class PlayerViewModel(
@@ -74,6 +75,24 @@ class PlayerViewModel(
     private var currentSeasonNumber: Int? = null
     private var currentEpisodeNumber: Int? = null
 
+    private var loadStreamJob: Job? = null
+    private var nextEpisodeJob: Job? = null
+    private var subdlDownloadJob: Job? = null
+
+    fun retryLoadStream() {
+        if (currentContentId.isBlank()) return
+        loadStream(
+            contentType = currentContentType,
+            contentId = currentContentId,
+            title = currentContentTitle,
+            posterUrl = currentPosterUrl,
+            backdropUrl = currentBackdropUrl,
+            slug = currentSlug,
+            seasonNumber = currentSeasonNumber,
+            episodeNumber = currentEpisodeNumber
+        )
+    }
+
     fun loadStream(
         contentType: String,
         contentId: String,
@@ -84,6 +103,12 @@ class PlayerViewModel(
         seasonNumber: Int? = null,
         episodeNumber: Int? = null
     ) {
+        loadStreamJob?.cancel()
+        nextEpisodeJob?.cancel()
+        subdlSearchJob?.cancel()
+        subdlDownloadJob?.cancel()
+        sessionQueryOverride = null
+
         currentContentId = contentId
         currentContentType = contentType
         currentContentTitle = title
@@ -107,25 +132,28 @@ class PlayerViewModel(
             episodeNumber = episodeNumber
         )
 
-        viewModelScope.launch {
+        loadStreamJob = viewModelScope.launch {
             _uiState.value = PlayerUiState(
                 isLoading = true,
                 initialPositionMs = savedPos,
                 nextEpisode = null,
-                isNextEpisodeDismissed = false
+                isNextEpisodeDismissed = false,
+                activeContentId = contentId
             )
 
             // Asynchronously resolve the next episode in background for TV Series
             if (contentType == "episode" && !slug.isNullOrBlank()) {
-                resolveNextEpisode(
-                    seriesSlug = slug,
-                    currentEpisodeId = contentId,
-                    seasonNumber = seasonNumber,
-                    episodeNumber = episodeNumber,
-                    fallbackTitle = title,
-                    posterUrl = posterUrl,
-                    backdropUrl = backdropUrl
-                )
+                nextEpisodeJob = viewModelScope.launch {
+                    resolveNextEpisode(
+                        seriesSlug = slug,
+                        currentEpisodeId = contentId,
+                        seasonNumber = seasonNumber,
+                        episodeNumber = episodeNumber,
+                        fallbackTitle = title,
+                        posterUrl = posterUrl,
+                        backdropUrl = backdropUrl
+                    )
+                }
             }
 
             val result = repository.resolveStream(
@@ -138,15 +166,24 @@ class PlayerViewModel(
             )
 
             result.onSuccess { resolved ->
-                val defaultSub = resolved.subtitles.firstOrNull { it.lang.equals("id", ignoreCase = true) || it.lang.equals("in", ignoreCase = true) }
-                    ?: resolved.subtitles.firstOrNull { it.lang.equals("en", ignoreCase = true) }
-                    ?: resolved.subtitles.firstOrNull()
+                val prefLang = com.idlix.data.util.LocaleHelper.getPreferredLanguage()
+                val fallbackLang = if (prefLang.equals("id", ignoreCase = true) || prefLang.equals("in", ignoreCase = true)) "en" else "id"
+                val defaultSub = resolved.subtitles.firstOrNull {
+                    if (prefLang.equals("id", ignoreCase = true) || prefLang.equals("in", ignoreCase = true)) {
+                        it.lang.equals("id", ignoreCase = true) || it.lang.equals("in", ignoreCase = true)
+                    } else {
+                        it.lang.equals(prefLang, ignoreCase = true)
+                    }
+                } ?: resolved.subtitles.firstOrNull {
+                    it.lang.equals(fallbackLang, ignoreCase = true)
+                } ?: resolved.subtitles.firstOrNull()
 
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     resolvedStream = resolved,
                     selectedSubtitle = defaultSub,
-                    isSubtitleEnabled = defaultSub != null
+                    isSubtitleEnabled = defaultSub != null,
+                    activeContentId = contentId
                 )
             }.onFailure { err ->
                 _uiState.value = _uiState.value.copy(
@@ -157,7 +194,7 @@ class PlayerViewModel(
         }
     }
 
-    private fun resolveNextEpisode(
+    private suspend fun resolveNextEpisode(
         seriesSlug: String,
         currentEpisodeId: String,
         seasonNumber: Int?,
@@ -166,121 +203,128 @@ class PlayerViewModel(
         posterUrl: String?,
         backdropUrl: String?
     ) {
-        viewModelScope.launch {
-            try {
-                val series = repository.getSeriesDetail(seriesSlug) ?: return@launch
-                val defaultSeason = series.defaultSeason
-                val seriesTitle = series.title.ifBlank { fallbackTitle.substringBefore(" -") }
-                val rawSeasons = series.seasons.ifEmpty {
-                    if (defaultSeason != null) {
-                        listOf(Season(seasonNumber = defaultSeason.seasonNumber, name = defaultSeason.name))
-                    } else emptyList()
+        try {
+            val series = repository.getSeriesDetail(seriesSlug) ?: return
+            val defaultSeason = series.defaultSeason
+            val seriesTitle = series.title.ifBlank { fallbackTitle.substringBefore(" -") }
+            val rawSeasons = series.seasons.ifEmpty {
+                if (defaultSeason != null) {
+                    listOf(Season(seasonNumber = defaultSeason.seasonNumber, name = defaultSeason.name))
+                } else emptyList()
+            }
+            val allSeasons = rawSeasons.sortedBy { it.seasonNumber }
+
+            var currentSeasonNum = seasonNumber
+            var currentEpNum = episodeNumber
+            var seasonEpisodes: List<EpisodeItem> = emptyList()
+
+            // Strategy 1: Check if currentEpisodeId is in defaultSeason
+            if (defaultSeason?.episodes?.any { it.id == currentEpisodeId } == true) {
+                currentSeasonNum = defaultSeason.seasonNumber
+                seasonEpisodes = defaultSeason.episodes
+            } else if (currentSeasonNum != null && defaultSeason?.seasonNumber == currentSeasonNum && !defaultSeason.episodes.isNullOrEmpty()) {
+                seasonEpisodes = defaultSeason.episodes
+            } else if (currentSeasonNum != null) {
+                val epDetail = try {
+                    repository.getEpisodeDetail(seriesSlug, currentSeasonNum, 1)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    null
                 }
-                val allSeasons = rawSeasons.sortedBy { it.seasonNumber }
+                seasonEpisodes = epDetail?.season?.episodes ?: emptyList()
+            }
 
-                var currentSeasonNum = seasonNumber
-                var currentEpNum = episodeNumber
-                var seasonEpisodes: List<EpisodeItem> = emptyList()
-
-                // Strategy 1: Check if currentEpisodeId is in defaultSeason
-                if (defaultSeason?.episodes?.any { it.id == currentEpisodeId } == true) {
-                    currentSeasonNum = defaultSeason.seasonNumber
-                    seasonEpisodes = defaultSeason.episodes
-                } else if (currentSeasonNum != null && defaultSeason?.seasonNumber == currentSeasonNum && !defaultSeason.episodes.isNullOrEmpty()) {
-                    seasonEpisodes = defaultSeason.episodes
-                } else if (currentSeasonNum != null) {
-                    val epDetail = try {
-                        repository.getEpisodeDetail(seriesSlug, currentSeasonNum, 1)
-                    } catch (_: Exception) {
-                        null
-                    }
-                    seasonEpisodes = epDetail?.season?.episodes ?: emptyList()
-                }
-
-                // Strategy 2: If seasonEpisodes is still empty or currentEpisodeId not found, scan all seasons
-                if (seasonEpisodes.isEmpty() || (currentEpisodeId.isNotBlank() && seasonEpisodes.none { it.id == currentEpisodeId } && currentEpNum == null)) {
-                    for (s in allSeasons) {
-                        if (s.seasonNumber == defaultSeason?.seasonNumber && !defaultSeason.episodes.isNullOrEmpty()) {
-                            if (defaultSeason.episodes.any { it.id == currentEpisodeId }) {
-                                currentSeasonNum = s.seasonNumber
-                                seasonEpisodes = defaultSeason.episodes
-                                break
-                            }
-                        } else {
-                            val epDetail = try {
-                                repository.getEpisodeDetail(seriesSlug, s.seasonNumber, 1)
-                            } catch (_: Exception) {
-                                null
-                            }
-                            val eps = epDetail?.season?.episodes ?: emptyList()
-                            if (eps.any { it.id == currentEpisodeId }) {
-                                currentSeasonNum = s.seasonNumber
-                                seasonEpisodes = eps
-                                break
-                            }
+            // Strategy 2: If seasonEpisodes is still empty or currentEpisodeId not found, scan all seasons
+            if (seasonEpisodes.isEmpty() || (currentEpisodeId.isNotBlank() && seasonEpisodes.none { it.id == currentEpisodeId } && currentEpNum == null)) {
+                for (s in allSeasons) {
+                    if (s.seasonNumber == defaultSeason?.seasonNumber && !defaultSeason.episodes.isNullOrEmpty()) {
+                        if (defaultSeason.episodes.any { it.id == currentEpisodeId }) {
+                            currentSeasonNum = s.seasonNumber
+                            seasonEpisodes = defaultSeason.episodes
+                            break
                         }
-                    }
-                }
-
-                if (seasonEpisodes.isEmpty()) return@launch
-
-                // Find index of current episode in this season
-                var currentIndex = seasonEpisodes.indexOfFirst { it.id == currentEpisodeId }
-                if (currentIndex == -1 && currentEpNum != null) {
-                    currentIndex = seasonEpisodes.indexOfFirst { it.episodeNumber == currentEpNum }
-                }
-
-                if (currentIndex != -1 && currentEpNum == null) {
-                    currentEpNum = seasonEpisodes[currentIndex].episodeNumber
-                }
-
-                if (currentIndex != -1 && currentIndex + 1 < seasonEpisodes.size) {
-                    // Next episode is in the same season!
-                    val nextEp = seasonEpisodes[currentIndex + 1]
-                    _uiState.value = _uiState.value.copy(
-                        nextEpisode = NextEpisodeInfo(
-                            episode = nextEp,
-                            seasonNumber = currentSeasonNum ?: 1,
-                            seriesTitle = seriesTitle,
-                            seriesSlug = seriesSlug,
-                            posterUrl = nextEp.fullStillUrl.ifBlank { posterUrl },
-                            backdropUrl = backdropUrl ?: series.fullBackdropUrl
-                        )
-                    )
-                } else if (currentSeasonNum != null) {
-                    // Check if there is a next season
-                    val nextSeason = allSeasons.firstOrNull { it.seasonNumber > currentSeasonNum }
-                    if (nextSeason != null) {
-                        // Load episode 1 of next season
-                        val nextSeasonDetail = try {
-                            repository.getEpisodeDetail(seriesSlug, nextSeason.seasonNumber, 1)
+                    } else {
+                        val epDetail = try {
+                            repository.getEpisodeDetail(seriesSlug, s.seasonNumber, 1)
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
                         } catch (_: Exception) {
                             null
                         }
-                        val nextEp = nextSeasonDetail?.season?.episodes?.firstOrNull()
-                            ?: nextSeasonDetail?.episode
-                        if (nextEp != null) {
-                            _uiState.value = _uiState.value.copy(
-                                nextEpisode = NextEpisodeInfo(
-                                    episode = nextEp,
-                                    seasonNumber = nextSeason.seasonNumber,
-                                    seriesTitle = seriesTitle,
-                                    seriesSlug = seriesSlug,
-                                    posterUrl = nextEp.fullStillUrl.ifBlank { posterUrl },
-                                    backdropUrl = backdropUrl ?: series.fullBackdropUrl
-                                )
-                            )
-                        } else {
-                            _uiState.value = _uiState.value.copy(nextEpisode = null)
+                        val eps = epDetail?.season?.episodes ?: emptyList()
+                        if (eps.any { it.id == currentEpisodeId }) {
+                            currentSeasonNum = s.seasonNumber
+                            seasonEpisodes = eps
+                            break
                         }
-                    } else {
-                        // Final episode of final season: stop completely
-                        _uiState.value = _uiState.value.copy(nextEpisode = null)
                     }
                 }
-            } catch (e: Exception) {
-                android.util.Log.w("PlayerViewModel", "Failed to resolve next episode: ${e.message}")
             }
+
+            if (seasonEpisodes.isEmpty() || currentContentId != currentEpisodeId) return
+
+            // Find index of current episode in this season
+            var currentIndex = seasonEpisodes.indexOfFirst { it.id == currentEpisodeId }
+            if (currentIndex == -1 && currentEpNum != null) {
+                currentIndex = seasonEpisodes.indexOfFirst { it.episodeNumber == currentEpNum }
+            }
+
+            if (currentIndex != -1 && currentEpNum == null) {
+                currentEpNum = seasonEpisodes[currentIndex].episodeNumber
+            }
+
+            if (currentIndex != -1 && currentIndex + 1 < seasonEpisodes.size) {
+                // Next episode is in the same season!
+                val nextEp = seasonEpisodes[currentIndex + 1]
+                _uiState.value = _uiState.value.copy(
+                    nextEpisode = NextEpisodeInfo(
+                        episode = nextEp,
+                        seasonNumber = currentSeasonNum ?: 1,
+                        seriesTitle = seriesTitle,
+                        seriesSlug = seriesSlug,
+                        posterUrl = nextEp.fullStillUrl.ifBlank { posterUrl },
+                        backdropUrl = backdropUrl ?: series.fullBackdropUrl
+                    )
+                )
+            } else if (currentSeasonNum != null) {
+                // Check if there is a next season
+                val nextSeason = allSeasons.firstOrNull { it.seasonNumber > currentSeasonNum }
+                if (nextSeason != null) {
+                    // Load episode 1 of next season
+                    val nextSeasonDetail = try {
+                        repository.getEpisodeDetail(seriesSlug, nextSeason.seasonNumber, 1)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        null
+                    }
+                    if (currentContentId != currentEpisodeId) return
+                    val nextEp = nextSeasonDetail?.season?.episodes?.firstOrNull()
+                        ?: nextSeasonDetail?.episode
+                    if (nextEp != null) {
+                        _uiState.value = _uiState.value.copy(
+                            nextEpisode = NextEpisodeInfo(
+                                episode = nextEp,
+                                seasonNumber = nextSeason.seasonNumber,
+                                seriesTitle = seriesTitle,
+                                seriesSlug = seriesSlug,
+                                posterUrl = nextEp.fullStillUrl.ifBlank { posterUrl },
+                                backdropUrl = backdropUrl ?: series.fullBackdropUrl
+                            )
+                        )
+                    } else {
+                        _uiState.value = _uiState.value.copy(nextEpisode = null)
+                    }
+                } else {
+                    // Final episode of final season: stop completely
+                    _uiState.value = _uiState.value.copy(nextEpisode = null)
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.w("PlayerViewModel", "Failed to resolve next episode: ${e.message}")
         }
     }
 
@@ -487,12 +531,15 @@ class PlayerViewModel(
         sub: SubdlSubtitle,
         onSubtitleReady: (SubtitleTrack) -> Unit
     ) {
-        viewModelScope.launch {
+        val requestContentId = currentContentId
+        subdlDownloadJob?.cancel()
+        subdlDownloadJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSearchingSubdl = true)
             val downloaded = SubdlRepository.downloadSubtitle(
                 sub = sub,
                 context = getApplication<Application>().applicationContext
             )
+            if (currentContentId != requestContentId) return@launch
             _uiState.value = _uiState.value.copy(isSearchingSubdl = false)
 
             if (downloaded != null) {
@@ -524,9 +571,10 @@ class PlayerViewModel(
         _uiState.value = _uiState.value.copy(isSubtitleEnabled = !current)
     }
 
-    fun saveProgress(currentPosMs: Long, durationMs: Long) {
-        if (currentContentId.isNotBlank() && durationMs > 0) {
-            historyStore.updateProgress(currentContentId, currentPosMs, durationMs)
+    fun saveProgress(contentId: String, currentPosMs: Long, durationMs: Long) {
+        val targetId = contentId.ifBlank { currentContentId }
+        if (targetId.isNotBlank() && durationMs > 0) {
+            historyStore.updateProgress(targetId, currentPosMs, durationMs)
         }
     }
 }

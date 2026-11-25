@@ -33,12 +33,15 @@ object CueRepositioner {
                 val deltaX = clampedX - PlayerAppearance.DEFAULT_POS_X
                 val deltaY = clampedY - PlayerAppearance.DEFAULT_POS_Y
 
-                val originalPos = if (cue.position != Cue.DIMEN_UNSET) cue.position else clampedX
+                val originalPos = if (cue.position != Cue.DIMEN_UNSET) cue.position else PlayerAppearance.DEFAULT_POS_X
                 val newPos = (originalPos + deltaX).coerceIn(SafeBounds.minX(), SafeBounds.maxX())
 
                 val newCue = cue.buildUpon()
                     .setPosition(newPos)
                     .apply {
+                        if (cue.positionAnchor == Cue.TYPE_UNSET) {
+                            setPositionAnchor(Cue.ANCHOR_TYPE_MIDDLE)
+                        }
                         if (cue.lineType == Cue.LINE_TYPE_FRACTION) {
                             val newLine = (cue.line + deltaY).coerceIn(
                                 SafeBounds.minYForSize(appearance.subtitleSize),
@@ -53,13 +56,24 @@ object CueRepositioner {
         }
 
         if (defaultTextCues.isNotEmpty()) {
-            // Merge all concurrent default cues to avoid overlapping text collisions
-            val mergedText = defaultTextCues
-                .mapNotNull { it.text }
-                .filter { it.isNotBlank() }
-                .joinToString("\n")
+            val nonBlankTexts = defaultTextCues.mapNotNull { it.text }.filter { it.isNotBlank() }
+            val mergedText: CharSequence? = when (nonBlankTexts.size) {
+                0 -> null
+                1 -> nonBlankTexts[0]
+                else -> try {
+                    val sb = android.text.SpannableStringBuilder().apply {
+                        nonBlankTexts.forEachIndexed { index, text ->
+                            if (index > 0) append('\n')
+                            append(text)
+                        }
+                    }
+                    if (sb.isNotBlank()) sb else nonBlankTexts.joinToString("\n")
+                } catch (_: Throwable) {
+                    nonBlankTexts.joinToString("\n")
+                }
+            }
 
-            if (mergedText.isNotBlank()) {
+            if (mergedText != null && mergedText.isNotBlank()) {
                 val mergedCue = Cue.Builder()
                     .setText(mergedText)
                     .setTextAlignment(Layout.Alignment.ALIGN_CENTER)

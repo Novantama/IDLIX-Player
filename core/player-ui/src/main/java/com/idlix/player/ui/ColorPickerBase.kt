@@ -56,7 +56,7 @@ fun rememberColorPickerState(
     initialColor: Int,
     initialAlpha: Float = ((initialColor ushr 24) and 0xFF) / 255f
 ): ColorPickerState {
-    return remember(initialColor) {
+    return remember(initialColor, initialAlpha) {
         ColorPickerState(initialColor, initialAlpha)
     }
 }
@@ -137,7 +137,8 @@ fun HueBar(
             cornerRadius = CornerRadius(6.dp.toPx(), 6.dp.toPx())
         )
 
-        val selX = ((hue % 360f) / 360f) * size.width
+        val normalizedHue = if (hue >= 360f) 360f else ((hue % 360f) + 360f) % 360f
+        val selX = (normalizedHue / 360f) * size.width
 
         drawCircle(
             color = Color.White,

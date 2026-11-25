@@ -1,5 +1,6 @@
 package com.idlix.mobile.ui.navigation
 
+import android.net.Uri
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Movie
@@ -8,8 +9,6 @@ import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.idlix.mobile.R
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 
 sealed class MobileScreen(val route: String) {
     object Home : MobileScreen("home")
@@ -22,7 +21,7 @@ sealed class MobileScreen(val route: String) {
 
     object Detail : MobileScreen("detail/{contentType}/{slug}") {
         fun createRoute(contentType: String, slug: String): String {
-            val encodedSlug = URLEncoder.encode(slug, StandardCharsets.UTF_8.toString())
+            val encodedSlug = Uri.encode(slug)
             return "detail/$contentType/$encodedSlug"
         }
     }

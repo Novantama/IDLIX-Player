@@ -28,8 +28,6 @@ import com.idlix.tv.ui.screens.search.SearchScreen
 import com.idlix.tv.ui.screens.series.SeriesScreen
 import com.idlix.tv.ui.screens.settings.SettingsScreen
 import com.idlix.tv.ui.screens.settings.SubtitlePositionEditorScreen
-import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
 
 @Composable
 fun AppNavigation(
@@ -82,60 +80,50 @@ fun AppNavigation(
 
     val isFullScreenRoute = currentRoute.startsWith("player") || currentRoute.startsWith("detail") || currentRoute.startsWith("subtitle_position_editor")
 
-    if (isFullScreenRoute) {
-        // Render without side drawer
+    // Always keep a single NavHost in one stable composition slot so fullscreen transitions don't wipe NavGraph/backstack state
+    TvNavDrawer(
+        selectedItem = selectedNavItem,
+        showDrawer = !isFullScreenRoute,
+        onItemSelected = { item ->
+            when (item) {
+                NavItem.HOME -> navController.navigate(Screen.Home.route) {
+                    popUpTo(Screen.Home.route) { inclusive = true }
+                    launchSingleTop = true
+                }
+                NavItem.SEARCH -> navController.navigate(Screen.Search.route) {
+                    popUpTo(Screen.Home.route)
+                    launchSingleTop = true
+                    restoreState = true
+                }
+                NavItem.CONTINUE_WATCHING -> navController.navigate(Screen.ContinueWatching.route) {
+                    popUpTo(Screen.Home.route)
+                    launchSingleTop = true
+                    restoreState = true
+                }
+                NavItem.MOVIES -> navController.navigate(Screen.Movies.route) {
+                    popUpTo(Screen.Home.route)
+                    launchSingleTop = true
+                    restoreState = true
+                }
+                NavItem.SERIES -> navController.navigate(Screen.Series.route) {
+                    popUpTo(Screen.Home.route)
+                    launchSingleTop = true
+                    restoreState = true
+                }
+                NavItem.SETTINGS -> navController.navigate(Screen.Settings.route) {
+                    popUpTo(Screen.Home.route)
+                    launchSingleTop = true
+                    restoreState = true
+                }
+            }
+        },
+        modifier = modifier
+    ) {
         NavHost(
             navController = navController,
-            startDestination = Screen.Home.route,
-            modifier = modifier
+            startDestination = Screen.Home.route
         ) {
             setupNavRoutes(navController)
-        }
-    } else {
-        // Render inside Collapsible TvNavDrawer
-        TvNavDrawer(
-            selectedItem = selectedNavItem,
-            onItemSelected = { item ->
-                when (item) {
-                    NavItem.HOME -> navController.navigate(Screen.Home.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                    NavItem.SEARCH -> navController.navigate(Screen.Search.route) {
-                        popUpTo(Screen.Home.route)
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                    NavItem.CONTINUE_WATCHING -> navController.navigate(Screen.ContinueWatching.route) {
-                        popUpTo(Screen.Home.route)
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                    NavItem.MOVIES -> navController.navigate(Screen.Movies.route) {
-                        popUpTo(Screen.Home.route)
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                    NavItem.SERIES -> navController.navigate(Screen.Series.route) {
-                        popUpTo(Screen.Home.route)
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                    NavItem.SETTINGS -> navController.navigate(Screen.Settings.route) {
-                        popUpTo(Screen.Home.route)
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                }
-            },
-            modifier = modifier
-        ) {
-            NavHost(
-                navController = navController,
-                startDestination = Screen.Home.route
-            ) {
-                setupNavRoutes(navController)
-            }
         }
     }
 }
@@ -265,30 +253,10 @@ private fun androidx.navigation.NavGraphBuilder.setupNavRoutes(
     ) { backStackEntry ->
         val contentType = backStackEntry.arguments?.getString("contentType") ?: "movie"
         val contentId = backStackEntry.arguments?.getString("contentId") ?: ""
-        val rawTitle = backStackEntry.arguments?.getString("title") ?: ""
-        val title = try {
-            URLDecoder.decode(rawTitle, StandardCharsets.UTF_8.toString())
-        } catch (e: Exception) {
-            rawTitle
-        }
-        val rawPoster = backStackEntry.arguments?.getString("poster") ?: ""
-        val poster = try {
-            URLDecoder.decode(rawPoster, StandardCharsets.UTF_8.toString()).takeIf { it.isNotBlank() }
-        } catch (e: Exception) {
-            rawPoster.takeIf { it.isNotBlank() }
-        }
-        val rawBackdrop = backStackEntry.arguments?.getString("backdrop") ?: ""
-        val backdrop = try {
-            URLDecoder.decode(rawBackdrop, StandardCharsets.UTF_8.toString()).takeIf { it.isNotBlank() }
-        } catch (e: Exception) {
-            rawBackdrop.takeIf { it.isNotBlank() }
-        }
-        val rawSlug = backStackEntry.arguments?.getString("slug") ?: ""
-        val slug = try {
-            URLDecoder.decode(rawSlug, StandardCharsets.UTF_8.toString()).takeIf { it.isNotBlank() }
-        } catch (e: Exception) {
-            rawSlug.takeIf { it.isNotBlank() }
-        }
+        val title = backStackEntry.arguments?.getString("title") ?: ""
+        val poster = backStackEntry.arguments?.getString("poster")?.takeIf { it.isNotBlank() }
+        val backdrop = backStackEntry.arguments?.getString("backdrop")?.takeIf { it.isNotBlank() }
+        val slug = backStackEntry.arguments?.getString("slug")?.takeIf { it.isNotBlank() }
         val season = backStackEntry.arguments?.getString("season")?.toIntOrNull()
         val episode = backStackEntry.arguments?.getString("episode")?.toIntOrNull()
 

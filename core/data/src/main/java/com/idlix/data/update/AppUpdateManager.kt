@@ -9,13 +9,16 @@ import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.idlix.data.api.ApiClient
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -97,15 +100,25 @@ object AppUpdateManager {
         currentVersion: String,
         isManualCheck: Boolean = true
     ) {
-        val currentState = _state.value
-        if (currentState is AppUpdateState.Checking || currentState is AppUpdateState.Downloading) {
-            return
-        }
-
         val appContext = context.applicationContext
-        activeJob?.cancel()
-        activeJob = scope.launch {
+        synchronized(this) {
+            val currentState = _state.value
+            if (currentState is AppUpdateState.Checking || currentState is AppUpdateState.Downloading) {
+                return
+            }
             _state.value = AppUpdateState.Checking
+            activeJob?.cancel()
+            activeJob = scope.launch {
+                performUpdateCheck(appContext, platform, currentVersion)
+            }
+        }
+    }
+
+    private suspend fun performUpdateCheck(
+        appContext: Context,
+        platform: AppPlatform,
+        currentVersion: String
+    ) {
 
             val timestamp = System.currentTimeMillis()
             val candidateEndpoints = mutableListOf<String>()
@@ -169,7 +182,7 @@ object AppUpdateManager {
                         detail = lastErrorMessage ?: "Gagal memeriksa pembaruan"
                     )
                 }
-                return@launch
+                return
             }
 
             val sectionInfo = ReleaseIniParser.parse(iniContent, platform)
@@ -177,7 +190,7 @@ object AppUpdateManager {
                 _state.value = AppUpdateState.Error(
                     errorType = AppUpdateErrorType.INVALID_RESPONSE
                 )
-                return@launch
+                return
             }
 
             val remoteVersion = ReleaseIniParser.normalizeVersion(sectionInfo.version)
@@ -186,7 +199,7 @@ object AppUpdateManager {
             if (!ReleaseIniParser.isUpdateRequired(cleanCurrentVersion, remoteVersion)) {
                 cleanupOldApks(appContext, keepFileName = null)
                 _state.value = AppUpdateState.UpToDate(cleanCurrentVersion)
-                return@launch
+                return
             }
 
             // Update diperlukan: periksa apakah APK versi terbaru sudah terunduh di cache
@@ -201,7 +214,7 @@ object AppUpdateManager {
                     apkFile = targetApkFile
                 )
                 _showUpdatePrompt.value = true
-                return@launch
+                return
             }
 
             // Hapus APK lama sebelum mengunduh yang baru
@@ -223,10 +236,9 @@ object AppUpdateManager {
                 targetFile = targetApkFile,
                 platform = platform
             )
-        }
     }
 
-    private fun downloadApk(
+    private suspend fun downloadApk(
         context: Context,
         downloadUrl: String,
         latestVersion: String,
@@ -239,18 +251,26 @@ object AppUpdateManager {
                 tempFile.delete()
             }
 
-            val request = Request.Builder()
+            val reqBuilder = Request.Builder()
                 .url(downloadUrl)
                 .get()
-                .build()
+            if (downloadUrl.contains("api.github.com") && downloadUrl.contains("/releases/assets/")) {
+                reqBuilder.header("Accept", "application/octet-stream")
+            }
+            val request = reqBuilder.build()
+
+            var fallbackToUrl: String? = null
+            var failedHttpCode: Int? = null
+            var missingBody = false
 
             ApiClient.updateHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
+                    failedHttpCode = response.code
                     if (response.code == 404 && downloadUrl.contains("github.com") && !downloadUrl.contains("releases/assets")) {
-                        val fallbackUrl = resolveGitHubAssetUrl(latestVersion, platform)
-                        if (!fallbackUrl.isNullOrBlank() && fallbackUrl != downloadUrl) {
-                            downloadApk(context, fallbackUrl, latestVersion, targetFile, platform)
-                            return
+                        val assetUrl = resolveGitHubAssetUrl(latestVersion, platform)
+                        if (!assetUrl.isNullOrBlank() && assetUrl != downloadUrl) {
+                            fallbackToUrl = assetUrl
+                            return@use
                         }
                     }
 
@@ -263,24 +283,16 @@ object AppUpdateManager {
                         val plat = if (platform == AppPlatform.TV) "tv" else "mobile"
                         val localApkUrl = "$localBase/api/update/apk/$plat"
                         if (downloadUrl != localApkUrl) {
-                            downloadApk(context, localApkUrl, latestVersion, targetFile, platform)
-                            return
+                            fallbackToUrl = localApkUrl
                         }
                     }
-
-                    _state.value = AppUpdateState.Error(
-                        errorType = AppUpdateErrorType.HTTP_ERROR,
-                        httpCode = response.code
-                    )
-                    return
+                    return@use
                 }
 
                 val body = response.body
                 if (body == null) {
-                    _state.value = AppUpdateState.Error(
-                        errorType = AppUpdateErrorType.DOWNLOAD_FAILED
-                    )
-                    return
+                    missingBody = true
+                    return@use
                 }
 
                 val totalBytes = body.contentLength()
@@ -295,11 +307,13 @@ object AppUpdateManager {
                     totalBytes = totalBytes.coerceAtLeast(0L)
                 )
 
+                val ctx = currentCoroutineContext()
                 body.byteStream().use { input ->
                     FileOutputStream(tempFile).use { output ->
                         val buffer = ByteArray(8 * 1024)
                         var bytesRead: Int
                         while (input.read(buffer).also { bytesRead = it } != -1) {
+                            if (!ctx.isActive) throw CancellationException()
                             output.write(buffer, 0, bytesRead)
                             downloadedBytes += bytesRead
 
@@ -326,6 +340,26 @@ object AppUpdateManager {
                 }
             }
 
+            fallbackToUrl?.let { nextUrl ->
+                downloadApk(context, nextUrl, latestVersion, targetFile, platform)
+                return
+            }
+
+            if (failedHttpCode != null) {
+                _state.value = AppUpdateState.Error(
+                    errorType = AppUpdateErrorType.HTTP_ERROR,
+                    httpCode = failedHttpCode
+                )
+                return
+            }
+
+            if (missingBody) {
+                _state.value = AppUpdateState.Error(
+                    errorType = AppUpdateErrorType.DOWNLOAD_FAILED
+                )
+                return
+            }
+
             if (!tempFile.exists() || tempFile.length() == 0L || !isValidApk(context, tempFile, latestVersion)) {
                 tempFile.delete()
                 _state.value = AppUpdateState.Error(
@@ -345,6 +379,9 @@ object AppUpdateManager {
                 apkFile = finalFile
             )
             _showUpdatePrompt.value = true
+        } catch (e: CancellationException) {
+            tempFile.delete()
+            throw e
         } catch (e: Exception) {
             hasCheckedOnStartup = false
             tempFile.delete()
@@ -500,7 +537,13 @@ object AppUpdateManager {
                                 AppPlatform.MOBILE -> name.contains("mobile", ignoreCase = true)
                             }
                             if (isMatch) {
-                                return asset.jsonObject["url"]?.jsonPrimitive?.content
+                                val browserUrl = asset.jsonObject["browser_download_url"]?.jsonPrimitive?.content
+                                val apiUrl = asset.jsonObject["url"]?.jsonPrimitive?.content
+                                return if (ApiClient.githubUpdateToken.isBlank()) {
+                                    browserUrl ?: apiUrl
+                                } else {
+                                    apiUrl ?: browserUrl
+                                }
                             }
                         }
                     }

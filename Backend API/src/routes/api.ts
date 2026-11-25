@@ -392,12 +392,12 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       tv: {
         apkFound: fs.existsSync(tvApkPath),
         localDownloadUrl: `${protocol}://${host}/api/update/apk/tv`,
-        cloudDownloadUrl: 'https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.11/IDLIX-TV-Modified.Auto-Detect.apk'
+        cloudDownloadUrl: 'https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.12/IDLIX-TV-Modified.Auto-Detect.apk'
       },
       mobile: {
         apkFound: fs.existsSync(mobileApkPath),
         localDownloadUrl: `${protocol}://${host}/api/update/apk/mobile`,
-        cloudDownloadUrl: 'https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.11/IDLIX-Mobile-Modified.Auto-Detect.apk'
+        cloudDownloadUrl: 'https://github.com/Novantama/IDLIX-Player/releases/download/v1.0.12/IDLIX-Mobile-Modified.Auto-Detect.apk'
       }
     };
   });

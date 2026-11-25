@@ -43,6 +43,8 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -103,13 +105,21 @@ fun TvColorPickerDialog(
         }
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color(0xB3000000))
-            .clickable(onClick = onDismiss),
-        contentAlignment = Alignment.Center
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+            usePlatformDefaultWidth = false
+        )
     ) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Color(0xB3000000))
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center
+        ) {
         Column(
             modifier = Modifier
                 .width(460.dp)
@@ -378,6 +388,7 @@ fun TvColorPickerDialog(
                     )
                 }
             }
+        }
         }
     }
 }

@@ -41,6 +41,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +56,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
@@ -78,6 +82,7 @@ import com.idlix.mobile.ui.theme.TextWhite
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
@@ -276,19 +281,37 @@ fun MobilePlayerView(
                     }
             }
 
+            var lastMergedSubtitle by remember(exoPlayer) {
+                mutableStateOf(if (isSubtitleEnabled) selectedSubtitle else null)
+            }
+            var isInitialSubtitleEffect by remember(exoPlayer) { mutableStateOf(true) }
+
             // Subtitle track updates without recreating ExoPlayer instance
-            LaunchedEffect(selectedSubtitle, isSubtitleEnabled) {
+            LaunchedEffect(exoPlayer, selectedSubtitle, isSubtitleEnabled) {
+                if (isInitialSubtitleEffect) {
+                    isInitialSubtitleEffect = false
+                    return@LaunchedEffect
+                }
                 try {
                     val currentTrack = if (isSubtitleEnabled) selectedSubtitle else null
-                    val wasPlaying = exoPlayer.isPlaying
-                    val currentPos = exoPlayer.currentPosition
-                    val newSource = MediaSourceHelper.buildMediaSource(
-                        context = context,
-                        masterUrl = resolvedStream.hlsMasterUrl,
-                        sub = currentTrack,
-                        httpDataSourceFactory = httpDataSourceFactory
-                    )
-                    exoPlayer.setMediaSource(newSource, currentPos)
+                    val needsMediaRebuild = currentTrack != lastMergedSubtitle && (currentTrack != null || lastMergedSubtitle != null)
+                    if (needsMediaRebuild) {
+                        val wasPlaying = exoPlayer.isPlaying
+                        val currentPos = exoPlayer.currentPosition
+                        val newSource = MediaSourceHelper.buildMediaSource(
+                            context = context,
+                            masterUrl = resolvedStream.hlsMasterUrl,
+                            sub = currentTrack,
+                            httpDataSourceFactory = httpDataSourceFactory
+                        )
+                        lastMergedSubtitle = currentTrack
+                        exoPlayer.setMediaSource(newSource, currentPos)
+                        exoPlayer.prepare()
+                        if (wasPlaying) {
+                            exoPlayer.play()
+                        }
+                    }
+
                     val selector = exoPlayer.trackSelectionParameters.buildUpon()
                     if (currentTrack != null) {
                         val lang = currentTrack.lang.lowercase()
@@ -308,10 +331,6 @@ fun MobilePlayerView(
                             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                     }
                     exoPlayer.trackSelectionParameters = selector.build()
-                    exoPlayer.prepare()
-                    if (wasPlaying) {
-                        exoPlayer.play()
-                    }
                 } catch (_: Exception) {}
             }
 
@@ -334,25 +353,48 @@ fun MobilePlayerView(
                 }
             }
 
-            DisposableEffect(exoPlayer) {
+            val lifecycleOwner = LocalLifecycleOwner.current
+            val latestNextEpisode by rememberUpdatedState(nextEpisode)
+            val latestIsNextDismissed by rememberUpdatedState(isNextEpisodeDismissed)
+            val latestOnPlayNextEpisode by rememberUpdatedState(onPlayNextEpisode)
+            val latestOnSaveProgress by rememberUpdatedState(onSaveProgress)
+
+            DisposableEffect(lifecycleOwner, exoPlayer) {
                 val listener = object : Player.Listener {
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         if (playbackState == Player.STATE_ENDED) {
-                            if (nextEpisode != null && !isNextEpisodeDismissed) {
-                                onPlayNextEpisode()
+                            if (latestNextEpisode != null && !latestIsNextDismissed) {
+                                latestOnPlayNextEpisode()
                             }
                         }
                     }
                 }
                 exoPlayer.addListener(listener)
 
+                val lifecycleObserver = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_STOP) {
+                        try {
+                            val pos = exoPlayer.currentPosition
+                            val dur = exoPlayer.duration
+                            if (dur > 0L) {
+                                latestOnSaveProgress(pos, dur)
+                            }
+                            if (exoPlayer.isPlaying || exoPlayer.playWhenReady) {
+                                exoPlayer.pause()
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
+
                 onDispose {
                     try {
+                        lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
                         exoPlayer.removeListener(listener)
                         val finalPos = exoPlayer.currentPosition
                         val finalDur = exoPlayer.duration
                         if (finalDur > 0) {
-                            onSaveProgress(finalPos, finalDur)
+                            latestOnSaveProgress(finalPos, finalDur)
                         }
                     } catch (_: Exception) {}
                     PipController.isPlaybackActive = false
@@ -375,6 +417,9 @@ fun MobilePlayerView(
                     }
                 },
                 update = { view ->
+                    if (view.player != exoPlayer) {
+                        view.player = exoPlayer
+                    }
                     view.setShutterBackgroundColor(appearance.backgroundColor)
                 },
                 modifier = Modifier.fillMaxSize()
@@ -392,12 +437,15 @@ fun MobilePlayerView(
             // Touch Gestures Layer (Single tap, Double tap seek, Vertical Drag for Brightness & Volume)
             if (!isInPipMode) {
                 var dragStartX by remember { mutableFloatStateOf(0f) }
+                var dragVolume by remember { mutableFloatStateOf(0f) }
+                var lastAppliedVol by remember { mutableIntStateOf(-1) }
                 var hideHudJob by remember { mutableStateOf<Job?>(null) }
+                var doubleTapHudJob by remember { mutableStateOf<Job?>(null) }
 
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .pointerInput(Unit) {
+                        .pointerInput(exoPlayer) {
                             detectTapGestures(
                                 onTap = {
                                     showControls = !showControls
@@ -406,21 +454,29 @@ fun MobilePlayerView(
                                 onDoubleTap = { offset ->
                                     val isRight = offset.x >= size.width / 2
                                     val delta = if (isRight) 10_000L else -10_000L
-                                    val targetPos = (exoPlayer.currentPosition + delta).coerceIn(0L, exoPlayer.duration.coerceAtLeast(0L))
+                                    val dur = exoPlayer.duration
+                                    val rawTarget = (exoPlayer.currentPosition + delta).coerceAtLeast(0L)
+                                    val targetPos = if (dur > 0L) rawTarget.coerceAtMost(dur) else rawTarget
                                     exoPlayer.seekTo(targetPos)
                                     doubleTapSeekFeedback = if (isRight) 10 else -10
                                     userInteractionCount++
-                                    scope.launch {
+                                    doubleTapHudJob?.cancel()
+                                    doubleTapHudJob = scope.launch {
                                         delay(800)
                                         doubleTapSeekFeedback = null
                                     }
                                 }
                             )
                         }
-                        .pointerInput(Unit) {
+                        .pointerInput(exoPlayer) {
                             detectVerticalDragGestures(
                                 onDragStart = { offset ->
                                     dragStartX = offset.x
+                                    if (audioManager != null) {
+                                        val curVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                                        dragVolume = curVol.toFloat()
+                                        lastAppliedVol = curVol
+                                    }
                                     userInteractionCount++
                                 },
                                 onVerticalDrag = { change, dragAmount ->
@@ -428,13 +484,17 @@ fun MobilePlayerView(
                                     val isRight = dragStartX >= size.width / 2
 
                                     if (isRight && audioManager != null) {
-                                        // Adjust Volume (Right)
+                                        // Adjust Volume (Right) smoothly proportional to drag distance
                                         val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                                        val currentVol = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                                        val deltaStep = if (dragAmount < 0) 1 else -1
-                                        val newVol = (currentVol + deltaStep).coerceIn(0, maxVol)
-                                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
-                                        volumeIndicator = newVol.toFloat() / maxVol.toFloat()
+                                        if (maxVol > 0) {
+                                            dragVolume = (dragVolume - dragAmount / 350f * maxVol).coerceIn(0f, maxVol.toFloat())
+                                            val newVol = dragVolume.roundToInt().coerceIn(0, maxVol)
+                                            if (newVol != lastAppliedVol) {
+                                                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                                lastAppliedVol = newVol
+                                            }
+                                            volumeIndicator = dragVolume / maxVol.toFloat()
+                                        }
                                     } else {
                                         // Adjust Brightness (Left)
                                         val activity = context.findActivity()

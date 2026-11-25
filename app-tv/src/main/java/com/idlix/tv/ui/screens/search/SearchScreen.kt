@@ -368,6 +368,12 @@ fun SearchScreen(
                 TvLoadingSpinner(
                     modifier = Modifier.align(Alignment.Center)
                 )
+            } else if (uiState.error != null) {
+                Text(
+                    text = uiState.error ?: "Pencarian gagal",
+                    color = NetflixRed,
+                    modifier = Modifier.align(Alignment.Center)
+                )
             } else if (uiState.results.isEmpty() && uiState.query.isNotBlank()) {
                 Text(
                     text = stringResource(R.string.no_results_for, uiState.query),
@@ -402,9 +408,6 @@ fun SearchScreen(
                             onClick = { onNavigateToDetail(item.contentType, item.slug) },
                             modifier = Modifier
                                 .then(if (isFirst) Modifier.focusRequester(firstResultFocusRequester) else Modifier)
-                                .focusProperties {
-                                    up = searchFieldFocusRequester
-                                }
                                 .onPreviewKeyEvent { keyEvent ->
                                     if (keyEvent.type == KeyEventType.KeyDown && keyEvent.key == Key.DirectionUp && isFirst) {
                                         try {

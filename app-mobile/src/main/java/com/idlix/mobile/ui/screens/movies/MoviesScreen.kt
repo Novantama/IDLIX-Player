@@ -73,7 +73,7 @@ fun MoviesScreen(
         }
     }
 
-    LaunchedEffect(shouldLoadMore) {
+    LaunchedEffect(shouldLoadMore, uiState.movies.size) {
         if (shouldLoadMore) {
             viewModel.loadMore()
         }

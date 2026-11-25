@@ -4,7 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.idlix.data.model.SearchResultItem
 import com.idlix.data.repository.IdlixRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,6 +31,7 @@ class SearchViewModel(
     private val _queryFlow = MutableStateFlow("")
     private val _uiState = MutableStateFlow(SearchUiState())
     val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
+    private var searchJob: Job? = null
 
     init {
         _queryFlow
@@ -38,7 +41,8 @@ class SearchViewModel(
                 if (query.trim().length >= 2) {
                     performSearch(query.trim())
                 } else {
-                    _uiState.value = _uiState.value.copy(isSearching = false, results = emptyList())
+                    searchJob?.cancel()
+                    _uiState.value = _uiState.value.copy(isSearching = false, results = emptyList(), error = null)
                 }
             }
             .launchIn(viewModelScope)
@@ -50,19 +54,24 @@ class SearchViewModel(
     }
 
     fun clearQuery() {
+        searchJob?.cancel()
         onQueryChange("")
+        _uiState.value = _uiState.value.copy(isSearching = false, results = emptyList(), error = null)
     }
 
     private fun performSearch(query: String) {
-        viewModelScope.launch {
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSearching = true, error = null)
             try {
-                val results = repository.search(query)
+                val results = repository.search(query).distinctBy { it.id }
                 _uiState.value = _uiState.value.copy(
                     isSearching = false,
                     results = results,
                     error = null
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isSearching = false,

@@ -70,7 +70,7 @@ fun SeriesScreen(
         }
     }
 
-    LaunchedEffect(shouldLoadMore) {
+    LaunchedEffect(shouldLoadMore, uiState.seriesList.size) {
         if (shouldLoadMore) {
             viewModel.loadMore()
         }

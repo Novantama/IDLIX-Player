@@ -13,10 +13,10 @@ import com.idlix.data.util.LocaleHelper
 import com.idlix.data.util.SubdlTitleCleaner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
-import java.net.URLEncoder
 import java.util.zip.ZipInputStream
 
 object SubdlRepository {
@@ -29,10 +29,10 @@ object SubdlRepository {
     private var currentApiKey: String? = null
 
     fun getApiKey(): String {
-        currentApiKey?.let { return it }
+        currentApiKey?.takeIf { it.isNotBlank() }?.let { return it }
         val saved = try {
             val prefs = ApiClient.applicationContext?.getSharedPreferences("idlix_config", Context.MODE_PRIVATE)
-            prefs?.getString(PREF_KEY_SUBDL_API_KEY, null)
+            prefs?.getString(PREF_KEY_SUBDL_API_KEY, null)?.trim()
         } catch (_: Exception) {
             null
         }
@@ -43,6 +43,14 @@ object SubdlRepository {
 
     fun setApiKey(newKey: String) {
         val trimmed = newKey.trim()
+        if (trimmed.isBlank()) {
+            currentApiKey = null
+            try {
+                val prefs = ApiClient.applicationContext?.getSharedPreferences("idlix_config", Context.MODE_PRIVATE)
+                prefs?.edit()?.remove(PREF_KEY_SUBDL_API_KEY)?.apply()
+            } catch (_: Exception) {}
+            return
+        }
         currentApiKey = trimmed
         try {
             val prefs = ApiClient.applicationContext?.getSharedPreferences("idlix_config", Context.MODE_PRIVATE)
@@ -55,7 +63,10 @@ object SubdlRepository {
         if (trimmed.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("SubDL API key cannot be empty"))
         }
-        val testEndpoint = "$BASE_URL?api_key=$trimmed&film_name=Avatar"
+        val testEndpoint = BASE_URL.toHttpUrl().newBuilder()
+            .addQueryParameter("api_key", trimmed)
+            .addQueryParameter("film_name", "Avatar")
+            .build()
         try {
             val req = Request.Builder()
                 .url(testEndpoint)
@@ -84,30 +95,32 @@ object SubdlRepository {
     }
 
     fun buildSearchUrl(query: SubdlQuery, apiKey: String): String {
-        val queryParams = StringBuilder("api_key=$apiKey&languages=${query.languages}")
+        val urlBuilder = BASE_URL.toHttpUrl().newBuilder()
+            .addQueryParameter("api_key", apiKey)
+            .addEncodedQueryParameter("languages", query.languages.trim().replace(" ", ""))
+
         if (query.sdId != null && query.sdId > 0) {
-            queryParams.append("&sd_id=${query.sdId}")
+            urlBuilder.addQueryParameter("sd_id", query.sdId.toString())
         } else if (query.tmdbId != null && query.tmdbId > 0) {
-            queryParams.append("&tmdb_id=${query.tmdbId}")
+            urlBuilder.addQueryParameter("tmdb_id", query.tmdbId.toString())
         } else if (!query.imdbId.isNullOrBlank()) {
-            queryParams.append("&imdb_id=${query.imdbId.trim()}")
+            urlBuilder.addQueryParameter("imdb_id", query.imdbId.trim())
         } else if (!query.filmName.isNullOrBlank()) {
-            val encoded = URLEncoder.encode(query.filmName.trim(), "UTF-8")
-            queryParams.append("&film_name=$encoded")
+            urlBuilder.addQueryParameter("film_name", query.filmName.trim())
         }
 
         if (query.year != null && query.year > 0) {
-            queryParams.append("&year=${query.year}")
+            urlBuilder.addQueryParameter("year", query.year.toString())
         }
 
         val effectiveType = if (query.type == "tv" || query.season != null) "tv" else "movie"
-        queryParams.append("&type=$effectiveType")
+        urlBuilder.addQueryParameter("type", effectiveType)
         if (effectiveType == "tv") {
-            if (query.season != null) queryParams.append("&season_number=${query.season}")
-            if (query.episode != null) queryParams.append("&episode_number=${query.episode}")
+            if (query.season != null) urlBuilder.addQueryParameter("season_number", query.season.toString())
+            if (query.episode != null) urlBuilder.addQueryParameter("episode_number", query.episode.toString())
         }
 
-        return "$BASE_URL?$queryParams"
+        return urlBuilder.build().toString()
     }
 
     suspend fun search(query: SubdlQuery): SubdlSearchResult = withContext(Dispatchers.IO) {
@@ -119,42 +132,43 @@ object SubdlRepository {
                 .header("User-Agent", "Mozilla/5.0 (Android TV; Idlix)")
                 .build()
 
-            val response = ApiClient.okHttpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
-                Log.w(TAG, "SubDL request failed with code: ${response.code}")
-                val reason = when (response.code) {
-                    401, 403 -> SubdlSearchResult.Error.Reason.INVALID_KEY
-                    429 -> SubdlSearchResult.Error.Reason.QUOTA
-                    else -> SubdlSearchResult.Error.Reason.HTTP
+            ApiClient.okHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "SubDL request failed with code: ${response.code}")
+                    val reason = when (response.code) {
+                        401, 403 -> SubdlSearchResult.Error.Reason.INVALID_KEY
+                        429 -> SubdlSearchResult.Error.Reason.QUOTA
+                        else -> SubdlSearchResult.Error.Reason.HTTP
+                    }
+                    return@withContext SubdlSearchResult.Error(reason, "HTTP error: ${response.code}")
                 }
-                return@withContext SubdlSearchResult.Error(reason, "HTTP error: ${response.code}")
-            }
 
-            val body = response.body?.string().orEmpty()
-            val subdlRes = try {
-                ApiClient.json.decodeFromString<SubdlResponse>(body)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to parse SubDL response: ${e.message}")
-                return@withContext SubdlSearchResult.Error(SubdlSearchResult.Error.Reason.PARSE, e.localizedMessage)
-            }
+                val body = response.body?.string().orEmpty()
+                val subdlRes = try {
+                    ApiClient.json.decodeFromString<SubdlResponse>(body)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to parse SubDL response: ${e.message}")
+                    return@withContext SubdlSearchResult.Error(SubdlSearchResult.Error.Reason.PARSE, e.localizedMessage)
+                }
 
-            if (subdlRes.subtitles.isNotEmpty()) {
-                SubdlSearchResult.Found(
-                    subtitles = subdlRes.subtitles,
-                    candidates = subdlRes.results
-                )
-            } else {
-                if (!subdlRes.status && !subdlRes.error.isNullOrBlank()) {
-                    val err = subdlRes.error.lowercase()
-                    if (err.contains("key") || err.contains("auth")) {
-                        SubdlSearchResult.Error(SubdlSearchResult.Error.Reason.INVALID_KEY, subdlRes.error)
-                    } else if (err.contains("limit") || err.contains("quota")) {
-                        SubdlSearchResult.Error(SubdlSearchResult.Error.Reason.QUOTA, subdlRes.error)
+                if (subdlRes.subtitles.isNotEmpty()) {
+                    SubdlSearchResult.Found(
+                        subtitles = subdlRes.subtitles,
+                        candidates = subdlRes.results
+                    )
+                } else {
+                    if (!subdlRes.status && !subdlRes.error.isNullOrBlank()) {
+                        val err = subdlRes.error.lowercase()
+                        if (err.contains("key") || err.contains("auth")) {
+                            SubdlSearchResult.Error(SubdlSearchResult.Error.Reason.INVALID_KEY, subdlRes.error)
+                        } else if (err.contains("limit") || err.contains("quota")) {
+                            SubdlSearchResult.Error(SubdlSearchResult.Error.Reason.QUOTA, subdlRes.error)
+                        } else {
+                            SubdlSearchResult.NotFound(candidates = subdlRes.results)
+                        }
                     } else {
                         SubdlSearchResult.NotFound(candidates = subdlRes.results)
                     }
-                } else {
-                    SubdlSearchResult.NotFound(candidates = subdlRes.results)
                 }
             }
         } catch (e: Exception) {
@@ -301,65 +315,65 @@ object SubdlRepository {
                 .header("Accept", "*/*")
                 .build()
 
-            val res = ApiClient.okHttpClient.newCall(req).execute()
-            if (!res.isSuccessful) {
-                Log.w(TAG, "Download zip failed with HTTP ${res.code} for: $url")
-                return null
-            }
+            ApiClient.okHttpClient.newCall(req).execute().use { res ->
+                if (!res.isSuccessful) {
+                    Log.w(TAG, "Download zip failed with HTTP ${res.code} for: $url")
+                    return null
+                }
 
-            val body = res.body ?: return null
-            val bytes = body.bytes()
-            if (bytes.isEmpty()) return null
+                val body = res.body ?: return null
+                val bytes = body.bytes()
+                if (bytes.isEmpty()) return null
 
-            val subDir = File(context.cacheDir, "subtitles").apply { mkdirs() }
+                val subDir = File(context.cacheDir, "subtitles").apply { mkdirs() }
 
-            // Check if zip archive (magic bytes PK 0x50 0x4B)
-            if (bytes.size >= 4 && bytes[0] == 0x50.toByte() && bytes[1] == 0x4B.toByte()) {
-                val zipStream = ZipInputStream(bytes.inputStream())
-                val entries = mutableListOf<Pair<String, ByteArray>>()
-
-                var entry = zipStream.nextEntry
-                while (entry != null) {
-                    val entryName = entry.name
-                    val lower = entryName.lowercase()
-                    if (!entry.isDirectory &&
-                        !entryName.contains("__MACOSX") &&
-                        !entryName.startsWith(".") &&
-                        !entryName.contains("/.")
-                    ) {
-                        if (lower.endsWith(".srt") || lower.endsWith(".vtt")) {
-                            entries.add(entryName to zipStream.readBytes())
+                // Check if zip archive (magic bytes PK 0x50 0x4B)
+                if (bytes.size >= 4 && bytes[0] == 0x50.toByte() && bytes[1] == 0x4B.toByte()) {
+                    val entries = mutableListOf<Pair<String, ByteArray>>()
+                    ZipInputStream(bytes.inputStream()).use { zipStream ->
+                        var entry = zipStream.nextEntry
+                        while (entry != null) {
+                            val entryName = entry.name
+                            val lower = entryName.lowercase()
+                            if (!entry.isDirectory &&
+                                !entryName.contains("__MACOSX") &&
+                                !entryName.startsWith(".") &&
+                                !entryName.contains("/.")
+                            ) {
+                                if (lower.endsWith(".srt") || lower.endsWith(".vtt")) {
+                                    entries.add(entryName to zipStream.readBytes())
+                                }
+                            }
+                            zipStream.closeEntry()
+                            entry = zipStream.nextEntry
                         }
                     }
-                    zipStream.closeEntry()
-                    entry = zipStream.nextEntry
-                }
-                zipStream.close()
 
-                if (entries.isNotEmpty()) {
-                    val chosen = if (isIndo) {
-                        entries.firstOrNull { (name, _) ->
-                            val l = name.lowercase()
-                            l.contains("ind") || l.contains("id") || l.contains("bahasa")
-                        } ?: entries.first()
-                    } else {
-                        entries.first()
+                    if (entries.isNotEmpty()) {
+                        val indoRegex = Regex("""(?:^|[^a-z])(id|ind|indo|indonesian|bahasa)(?:[^a-z]|$)""")
+                        val chosen = if (isIndo) {
+                            entries.firstOrNull { (name, _) ->
+                                indoRegex.containsMatchIn(name.lowercase())
+                            } ?: entries.first()
+                        } else {
+                            entries.first()
+                        }
+
+                        val ext = if (chosen.first.lowercase().endsWith(".vtt")) ".vtt" else ".srt"
+                        val outFile = File(subDir, "$filePrefix$ext")
+                        outFile.writeBytes(chosen.second)
+                        return outFile
                     }
-
-                    val ext = if (chosen.first.lowercase().endsWith(".vtt")) ".vtt" else ".srt"
+                } else {
+                    // Raw srt or vtt stream
+                    val isVtt = url.contains(".vtt", ignoreCase = true)
+                    val ext = if (isVtt) ".vtt" else ".srt"
                     val outFile = File(subDir, "$filePrefix$ext")
-                    outFile.writeBytes(chosen.second)
+                    outFile.writeBytes(bytes)
                     return outFile
                 }
-            } else {
-                // Raw srt or vtt stream
-                val isVtt = url.contains(".vtt", ignoreCase = true)
-                val ext = if (isVtt) ".vtt" else ".srt"
-                val outFile = File(subDir, "$filePrefix$ext")
-                outFile.writeBytes(bytes)
-                return outFile
+                null
             }
-            null
         } catch (e: Exception) {
             Log.e(TAG, "Error extracting zip from $url: ${e.message}")
             null

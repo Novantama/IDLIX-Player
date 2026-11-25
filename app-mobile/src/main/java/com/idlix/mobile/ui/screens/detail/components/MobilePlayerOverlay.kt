@@ -117,11 +117,6 @@ fun MobilePlayerOverlay(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.5f))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = onUserInteraction
-                    )
             ) {
                 // Top Bar
                 Row(

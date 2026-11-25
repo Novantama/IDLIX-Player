@@ -21,16 +21,16 @@ class WatchHistoryStore private constructor(context: Context) {
     }
 
     @Volatile
-    private var memoryHistory: MutableList<WatchHistoryItem>? = null
+    private var memoryHistory: List<WatchHistoryItem>? = null
 
     private val _historyFlow = MutableStateFlow<List<WatchHistoryItem>>(loadHistoryFromPrefs())
     val historyFlow: StateFlow<List<WatchHistoryItem>> = _historyFlow.asStateFlow()
 
-    private fun loadHistoryFromPrefs(): List<WatchHistoryItem> {
+    private fun loadHistoryFromPrefs(): List<WatchHistoryItem> = synchronized(this) {
         memoryHistory?.let { return it }
         val raw = prefs.getString("history_items_json", null) ?: return emptyList()
         return try {
-            val list = json.decodeFromString<List<WatchHistoryItem>>(raw).toMutableList()
+            val list = json.decodeFromString<List<WatchHistoryItem>>(raw).toList()
             memoryHistory = list
             list
         } catch (e: Exception) {
@@ -38,15 +38,18 @@ class WatchHistoryStore private constructor(context: Context) {
         }
     }
 
-    private fun saveHistoryToPrefs(items: List<WatchHistoryItem>) {
-        memoryHistory = items.toMutableList()
+    private fun saveHistoryToPrefs(items: List<WatchHistoryItem>) = synchronized(this) {
+        val snapshot = items.toList()
+        memoryHistory = snapshot
         val raw = try {
-            json.encodeToString(items)
+            json.encodeToString(snapshot)
         } catch (e: Exception) {
             null
         }
-        prefs.edit().putString("history_items_json", raw).apply()
-        _historyFlow.value = items
+        if (raw != null) {
+            prefs.edit().putString("history_items_json", raw).apply()
+        }
+        _historyFlow.value = snapshot
     }
 
     /**
@@ -62,7 +65,7 @@ class WatchHistoryStore private constructor(context: Context) {
         episodeTitle: String? = null,
         seasonNumber: Int? = null,
         episodeNumber: Int? = null
-    ) {
+    ) = synchronized(this) {
         val currentList = loadHistoryFromPrefs().toMutableList()
         val existingIndex = currentList.indexOfFirst { it.contentId == contentId }
         val savedPos = getSavedPosition(contentId)
@@ -110,7 +113,7 @@ class WatchHistoryStore private constructor(context: Context) {
     /**
      * Called periodically during playback to save current progress.
      */
-    fun updateProgress(contentId: String, positionMs: Long, durationMs: Long) {
+    fun updateProgress(contentId: String, positionMs: Long, durationMs: Long) = synchronized(this) {
         prefs.edit()
             .putLong("${contentId}_pos", positionMs)
             .putLong("${contentId}_dur", durationMs)
@@ -145,7 +148,7 @@ class WatchHistoryStore private constructor(context: Context) {
         return loadHistoryFromPrefs()
     }
 
-    fun removeItem(contentId: String) {
+    fun removeItem(contentId: String) = synchronized(this) {
         prefs.edit()
             .remove("${contentId}_pos")
             .remove("${contentId}_dur")
@@ -157,8 +160,9 @@ class WatchHistoryStore private constructor(context: Context) {
         saveHistoryToPrefs(currentList)
     }
 
-    fun clearAll() {
+    fun clearAll() = synchronized(this) {
         prefs.edit().clear().apply()
+        memoryHistory = emptyList()
         _historyFlow.value = emptyList()
     }
 

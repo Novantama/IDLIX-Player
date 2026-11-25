@@ -165,6 +165,19 @@ fun SearchScreen(
                     }
                 }
             }
+        } else if (uiState.error != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = uiState.error ?: "Search failed",
+                    color = IdlixRed,
+                    fontSize = 14.sp
+                )
+            }
         } else if (uiState.results.isEmpty()) {
             Box(
                 modifier = Modifier

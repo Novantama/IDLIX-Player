@@ -8,32 +8,42 @@ import com.idlix.data.model.IdlixAuthResponse
 import com.idlix.data.model.IdlixAuthStatusResponse
 import com.idlix.data.model.IdlixUserInfo
 import com.idlix.data.model.MovieListResponse
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.Cache
+import okhttp3.Call
+import okhttp3.Callback
 import okhttp3.Dns
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import okhttp3.dnsoverhttps.DnsOverHttps
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.io.File
+import java.io.IOException
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface
 import java.net.UnknownHostException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import kotlin.coroutines.resume
 
 object ApiClient {
 
@@ -63,6 +73,14 @@ object ApiClient {
     @Volatile
     private var currentBaseUrl: String? = null
 
+    private fun normalizeValidUrl(rawUrl: String): String? {
+        val trimmed = rawUrl.trim()
+        if (trimmed.isBlank()) return null
+        val withScheme = if (!trimmed.contains("://")) "http://$trimmed" else trimmed
+        val formatted = if (withScheme.endsWith("/")) withScheme else "$withScheme/"
+        return if (formatted.toHttpUrlOrNull() != null) formatted else null
+    }
+
     fun getDefaultUrl(): String = if (DEFAULT_URL.endsWith("/")) DEFAULT_URL else "$DEFAULT_URL/"
 
     fun getBaseUrl(): String {
@@ -74,18 +92,13 @@ object ApiClient {
             null
         }
 
-        val url = if (!saved.isNullOrBlank()) {
-            if (saved.endsWith("/")) saved else "$saved/"
-        } else {
-            getDefaultUrl()
-        }
+        val url = saved?.let { normalizeValidUrl(it) } ?: getDefaultUrl()
         currentBaseUrl = url
         return url
     }
 
     fun setBaseUrl(newUrl: String) {
-        val trimmed = newUrl.trim()
-        val formatted = if (trimmed.endsWith("/")) trimmed else "$trimmed/"
+        val formatted = normalizeValidUrl(newUrl) ?: return
         currentBaseUrl = formatted
         try {
             val prefs = applicationContext?.getSharedPreferences("idlix_config", Context.MODE_PRIVATE)
@@ -99,11 +112,8 @@ object ApiClient {
     }
 
     suspend fun testBackendConnection(targetUrl: String): Result<String> = withContext(Dispatchers.IO) {
-        val trimmed = targetUrl.trim()
-        if (trimmed.isBlank()) {
-            return@withContext Result.failure(IllegalArgumentException("Server URL cannot be empty"))
-        }
-        val formatted = if (trimmed.endsWith("/")) trimmed else "$trimmed/"
+        val formatted = normalizeValidUrl(targetUrl)
+            ?: return@withContext Result.failure(IllegalArgumentException("Server URL is invalid or empty"))
         val testEndpoint = "${formatted}api/movies?page=1&limit=1"
         val start = System.currentTimeMillis()
         try {
@@ -130,7 +140,7 @@ object ApiClient {
     }
 
     suspend fun autoDetectServer(): Result<String> = withContext(Dispatchers.IO) {
-        val discoveryClient = OkHttpClient.Builder()
+        val discoveryClient = okHttpClient.newBuilder()
             .connectTimeout(500, TimeUnit.MILLISECONDS)
             .readTimeout(500, TimeUnit.MILLISECONDS)
             .build()
@@ -162,20 +172,34 @@ object ApiClient {
             }
         } catch (_: Exception) {}
 
-        suspend fun probe(url: String): Boolean = withContext(Dispatchers.IO) {
+        suspend fun probe(url: String): Boolean = suspendCancellableCoroutine { cont ->
             try {
                 val req = Request.Builder()
                     .url(if (url.endsWith("/")) "${url}health" else "$url/health")
                     .get()
                     .build()
-                discoveryClient.newCall(req).execute().use { resp ->
-                    if (resp.isSuccessful) {
-                        val body = resp.body?.string().orEmpty()
-                        return@withContext body.contains("\"status\":\"ok\"") || body.contains("targetUrl") || body.contains("idlix")
+                val call = discoveryClient.newCall(req)
+                cont.invokeOnCancellation { call.cancel() }
+                call.enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        if (cont.isActive) cont.resume(false)
                     }
-                }
-            } catch (_: Exception) {}
-            return@withContext false
+
+                    override fun onResponse(call: Call, response: Response) {
+                        val ok = response.use { resp ->
+                            if (resp.isSuccessful) {
+                                val body = resp.body?.string().orEmpty()
+                                body.contains("\"status\":\"ok\"") || body.contains("targetUrl") || body.contains("idlix")
+                            } else {
+                                false
+                            }
+                        }
+                        if (cont.isActive) cont.resume(ok)
+                    }
+                })
+            } catch (_: Exception) {
+                if (cont.isActive) cont.resume(false)
+            }
         }
 
         for (candidate in directCandidates) {
@@ -467,7 +491,10 @@ object ApiClient {
         try {
             val base = getBaseUrl().trimEnd('/')
             val url = "$base/api/auth/login"
-            val jsonPayload = """{"identifier":"$cleanIdent","password":"$cleanPass"}"""
+            val jsonPayload = buildJsonObject {
+                put("identifier", cleanIdent)
+                put("password", cleanPass)
+            }.toString()
             val body = jsonPayload.toRequestBody("application/json; charset=utf-8".toMediaType())
             val req = Request.Builder()
                 .url(url)
@@ -485,6 +512,11 @@ object ApiClient {
                             message = "Berhasil masuk",
                             status = "Berhasil terhubung",
                             user = IdlixUserInfo(email = cleanIdent, username = cleanIdent.substringBefore('@'), plan = "Aktif")
+                        )
+                    }
+                    if (!parsed.success) {
+                        return@withContext Result.failure(
+                            Exception(parsed.message.ifBlank { "Email atau kata sandi tidak sesuai" })
                         )
                     }
                     val account = IdlixAccount(
@@ -507,6 +539,8 @@ object ApiClient {
                     Result.failure(Exception(errMessage))
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             // Resilient handling: If backend is local or transiently offline, register local connected session
             val account = IdlixAccount(
@@ -547,9 +581,25 @@ object ApiClient {
                         json.decodeFromString<IdlixAuthStatusResponse>(respStr)
                     } catch (_: Exception) { null }
 
+                    val updated = if (parsed != null && !parsed.isLoggedIn) {
+                        current.copy(
+                            isLoggedIn = false,
+                            status = "Belum terhubung",
+                            lastUpdated = System.currentTimeMillis()
+                        )
+                    } else {
+                        current.copy(
+                            status = "Berhasil terhubung",
+                            plan = parsed?.user?.plan ?: current.plan.ifBlank { "Aktif" },
+                            lastUpdated = System.currentTimeMillis()
+                        )
+                    }
+                    IdlixAccountStore.saveAccount(updated)
+                    Result.success(updated)
+                } else if (resp.code == 401 || resp.code == 403) {
                     val updated = current.copy(
-                        status = "Berhasil terhubung",
-                        plan = parsed?.user?.plan ?: current.plan.ifBlank { "Aktif" },
+                        isLoggedIn = false,
+                        status = "Belum terhubung",
                         lastUpdated = System.currentTimeMillis()
                     )
                     IdlixAccountStore.saveAccount(updated)
@@ -563,6 +613,8 @@ object ApiClient {
                     Result.success(updated)
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             val updated = current.copy(
                 status = "Berhasil terhubung",
@@ -617,11 +669,16 @@ object ApiClient {
                     .header("Pragma", "no-cache")
 
                 val host = originalRequest.url.host.lowercase()
-                val isGitHub = host.contains("github.com") || host.contains("githubusercontent.com")
+                val isGitHub = host == "github.com" ||
+                    host.endsWith(".github.com") ||
+                    host == "githubusercontent.com" ||
+                    host.endsWith(".githubusercontent.com")
 
                 if (isGitHub && githubUpdateToken.isNotBlank()) {
                     reqBuilder.header("Authorization", "Bearer $githubUpdateToken")
-                    reqBuilder.header("Accept", "application/vnd.github.v3.raw, application/octet-stream, */*")
+                    if (originalRequest.header("Accept") == null) {
+                        reqBuilder.header("Accept", "application/vnd.github.v3.raw, application/octet-stream, */*")
+                    }
                 }
 
                 chain.proceed(reqBuilder.build())

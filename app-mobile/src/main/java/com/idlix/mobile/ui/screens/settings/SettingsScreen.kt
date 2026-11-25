@@ -97,10 +97,11 @@ fun SettingsScreen(
     var inputPassword by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
 
-    LaunchedEffect(accountState.email) {
+    LaunchedEffect(accountState.email, accountState.isLoggedIn) {
         if (inputEmail.isEmpty() && accountState.email.isNotEmpty()) {
             inputEmail = accountState.email
         }
+        inputPassword = ""
     }
 
     Column(
@@ -188,7 +189,7 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = uiState.backendTestResult ?: "",
-                            color = if (uiState.backendTestResult!!.contains("success", ignoreCase = true) || uiState.backendTestResult!!.contains("valid", ignoreCase = true)) Color(0xFF4CAF50) else IdlixRed,
+                            color = if (uiState.isBackendTestSuccess) Color(0xFF4CAF50) else IdlixRed,
                             fontSize = 12.sp
                         )
                     }
@@ -525,7 +526,7 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = uiState.subdlTestResult ?: "",
-                            color = if (uiState.subdlTestResult!!.contains("valid", ignoreCase = true) || uiState.subdlTestResult!!.contains("success", ignoreCase = true)) Color(0xFF4CAF50) else IdlixRed,
+                            color = if (uiState.isSubdlTestSuccess) Color(0xFF4CAF50) else IdlixRed,
                             fontSize = 12.sp
                         )
                     }
@@ -648,7 +649,7 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = uiState.dnsTestResult ?: "",
-                            color = if (uiState.dnsTestResult!!.contains("resolved", ignoreCase = true) || uiState.dnsTestResult!!.contains("success", ignoreCase = true)) Color(0xFF4CAF50) else IdlixRed,
+                            color = if (uiState.isDnsTestSuccess) Color(0xFF4CAF50) else IdlixRed,
                             fontSize = 12.sp
                         )
                     }

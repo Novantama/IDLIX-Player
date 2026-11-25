@@ -7,6 +7,8 @@ import com.idlix.data.model.MovieDetail
 import com.idlix.data.model.Season
 import com.idlix.data.model.SeriesDetail
 import com.idlix.data.repository.IdlixRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,19 +30,27 @@ class DetailViewModel(
 
     private val _uiState = MutableStateFlow(DetailUiState())
     val uiState: StateFlow<DetailUiState> = _uiState.asStateFlow()
+    private var selectSeasonJob: Job? = null
 
     fun loadDetail(contentType: String, slug: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                if (contentType == "tv_series") {
+                if (contentType == "tv_series" || contentType == "series" || contentType == "episode") {
                     val series = repository.getSeriesDetail(slug)
-                    val defaultSeason = series?.defaultSeason
+                    if (series == null) {
+                        _uiState.value = DetailUiState(
+                            isLoading = false,
+                            error = "Konten tidak ditemukan"
+                        )
+                        return@launch
+                    }
+                    val defaultSeason = series.defaultSeason
                     val defaultSeasonNum = defaultSeason?.seasonNumber
                     // Match selected season with defaultSeason, or fallback to first season
-                    val initialSeason = series?.seasons?.firstOrNull { it.seasonNumber == defaultSeasonNum }
+                    val initialSeason = series.seasons.firstOrNull { it.seasonNumber == defaultSeasonNum }
                         ?: defaultSeason?.let { Season(id = it.id, seasonNumber = it.seasonNumber, name = it.name) }
-                        ?: series?.seasons?.firstOrNull()
+                        ?: series.seasons.firstOrNull()
                     val episodes = defaultSeason?.episodes ?: emptyList()
 
                     _uiState.value = DetailUiState(
@@ -51,11 +61,20 @@ class DetailViewModel(
                     )
                 } else {
                     val movie = repository.getMovieDetail(slug)
+                    if (movie == null) {
+                        _uiState.value = DetailUiState(
+                            isLoading = false,
+                            error = "Konten tidak ditemukan"
+                        )
+                        return@launch
+                    }
                     _uiState.value = DetailUiState(
                         isLoading = false,
                         movie = movie
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
@@ -69,7 +88,8 @@ class DetailViewModel(
         if (_uiState.value.selectedSeason?.id == season.id && _uiState.value.episodes.isNotEmpty() && !_uiState.value.isLoadingEpisodes) {
             return
         }
-        viewModelScope.launch {
+        selectSeasonJob?.cancel()
+        selectSeasonJob = viewModelScope.launch {
             val series = _uiState.value.series
             val defaultSeason = series?.defaultSeason
             // If selecting the default season and its episodes are already cached, use them directly
@@ -84,16 +104,20 @@ class DetailViewModel(
 
             _uiState.value = _uiState.value.copy(
                 selectedSeason = season,
+                episodes = emptyList(),
                 isLoadingEpisodes = true
             )
             try {
                 // Fetch specific season episodes via episode 1 detail
                 val epRes = repository.getEpisodeDetail(seriesSlug, season.seasonNumber, 1)
+                if (_uiState.value.selectedSeason?.seasonNumber != season.seasonNumber) return@launch
                 val newEpisodes = epRes?.season?.episodes ?: emptyList()
                 _uiState.value = _uiState.value.copy(
                     isLoadingEpisodes = false,
-                    episodes = if (newEpisodes.isNotEmpty()) newEpisodes else _uiState.value.episodes
+                    episodes = newEpisodes
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoadingEpisodes = false)
             }

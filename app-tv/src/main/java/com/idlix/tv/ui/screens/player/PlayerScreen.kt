@@ -89,7 +89,12 @@ private class QueryPreservingDataSource(
     override fun open(dataSpec: androidx.media3.datasource.DataSpec): Long {
         val uri = dataSpec.uri
         val uriStr = uri.toString()
-        val finalUri = if (tokenQuery.isNotBlank() && !uriStr.contains("t=")) {
+        val hasTokenParam = try {
+            uri.getQueryParameter("t") != null
+        } catch (_: Exception) {
+            false
+        }
+        val finalUri = if (tokenQuery.isNotBlank() && !hasTokenParam) {
             val delimiter = if (uriStr.contains("?")) "&" else "?"
             Uri.parse("$uriStr$delimiter$tokenQuery")
         } else {
@@ -223,6 +228,12 @@ fun PlayerScreen(
                                 isEditingPositionOnVideo = false
                                 activePlayer?.play()
                                 true
+                            } else if (uiState.isManualSearchOpen) {
+                                viewModel.closeManualSearch()
+                                true
+                            } else if (uiState.isAppearancePanelOpen) {
+                                viewModel.closeAppearancePanel()
+                                true
                             } else if (uiState.isSubtitlePickerVisible) {
                                 viewModel.closeSubtitlePicker()
                                 true
@@ -276,7 +287,8 @@ fun PlayerScreen(
                                 false
                             } else if (!showControls) {
                                 activePlayer?.let { p ->
-                                    p.seekTo((p.currentPosition + 10000L).coerceAtMost(p.duration))
+                                    val target = p.currentPosition + 10_000L
+                                    p.seekTo(if (p.duration > 0L) target.coerceAtMost(p.duration) else target)
                                 }
                                 showControls = true
                                 true
@@ -343,7 +355,7 @@ fun PlayerScreen(
                 Spacer(modifier = Modifier.height(18.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     Button(
-                        onClick = { viewModel.loadStream(contentType, contentId, title) },
+                        onClick = { viewModel.retryLoadStream() },
                         colors = ButtonDefaults.colors(
                             containerColor = NetflixRed,
                             contentColor = NetflixWhite
@@ -413,8 +425,12 @@ fun PlayerScreen(
                     .build()
 
                 val subUri = Uri.parse(sub.path)
+                val masterHost = try { Uri.parse(masterUrl).host } catch (_: Exception) { null }
                 val subDataSourceFactory = if (subUri.scheme == "file" || subUri.scheme == null) {
                     DefaultDataSource.Factory(context)
+                } else if (subUri.host != null && masterHost != null && !subUri.host.equals(masterHost, ignoreCase = true)) {
+                    DefaultHttpDataSource.Factory()
+                        .setUserAgent("Mozilla/5.0 (Android TV; Idlix)")
                 } else {
                     httpDataSourceFactory
                 }
@@ -424,6 +440,8 @@ fun PlayerScreen(
 
                 return MergingMediaSource(hlsSource, subtitleSource)
             }
+
+            val playbackContentId = remember(resolved.hlsMasterUrl) { uiState.activeContentId }
 
             val exoPlayer = remember(context, resolved.hlsMasterUrl) {
                 val renderersFactory = object : DefaultRenderersFactory(context) {
@@ -454,18 +472,31 @@ fun PlayerScreen(
                     .setLoadControl(loadControl)
                     .build().apply {
                     val prefLang = com.idlix.data.util.LocaleHelper.getPreferredLanguage()
-                    val fallbackLang = if (prefLang == "id") "en" else "id"
-                    val activeSub = resolved.subtitles.firstOrNull { it.lang.equals(prefLang, ignoreCase = true) }
+                    val fallbackLang = if (prefLang == "id" || prefLang == "in") "en" else "id"
+                    val activeSub = uiState.selectedSubtitle
+                        ?: resolved.subtitles.firstOrNull {
+                            if (prefLang == "id" || prefLang == "in") {
+                                it.lang.equals("id", ignoreCase = true) || it.lang.equals("in", ignoreCase = true)
+                            } else {
+                                it.lang.equals(prefLang, ignoreCase = true)
+                            }
+                        }
                         ?: resolved.subtitles.firstOrNull { it.lang.equals(fallbackLang, ignoreCase = true) }
                         ?: resolved.subtitles.firstOrNull()
 
                     val finalMediaSource = buildMediaSource(resolved.hlsMasterUrl, activeSub)
                     setMediaSource(finalMediaSource)
 
+                    val initLang = activeSub?.lang?.lowercase() ?: prefLang.lowercase()
+                    val initLangs = if (initLang == "id" || initLang == "in" || initLang == "ind") {
+                        arrayOf("id", "in", "ind", "indonesian")
+                    } else {
+                        arrayOf(initLang)
+                    }
                     trackSelectionParameters = trackSelectionParameters.buildUpon()
-                        .setPreferredTextLanguage(prefLang)
+                        .setPreferredTextLanguages(*initLangs)
                         .setSelectUndeterminedTextLanguage(true)
-                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !uiState.isSubtitleEnabled)
                         .build()
 
                     prepare()
@@ -481,33 +512,36 @@ fun PlayerScreen(
             }
 
             fun applySubtitleTrack(track: com.idlix.data.model.SubtitleTrack?) {
-                val currentPos = exoPlayer.currentPosition
-                val wasPlaying = exoPlayer.isPlaying
-                val newSource = buildMediaSource(resolved.hlsMasterUrl, track)
-                exoPlayer.setMediaSource(newSource, currentPos)
-                val selector = exoPlayer.trackSelectionParameters.buildUpon()
-                if (track != null) {
-                    val lang = track.lang.lowercase()
-                    val langs = if (lang == "id" || lang == "in" || lang == "ind") {
-                        arrayOf("id", "in", "ind", "indonesian")
+                if (activePlayer !== exoPlayer) return
+                try {
+                    val currentPos = exoPlayer.currentPosition
+                    val wasPlaying = exoPlayer.isPlaying
+                    val newSource = buildMediaSource(resolved.hlsMasterUrl, track)
+                    exoPlayer.setMediaSource(newSource, currentPos)
+                    val selector = exoPlayer.trackSelectionParameters.buildUpon()
+                    if (track != null) {
+                        val lang = track.lang.lowercase()
+                        val langs = if (lang == "id" || lang == "in" || lang == "ind") {
+                            arrayOf("id", "in", "ind", "indonesian")
+                        } else {
+                            arrayOf(lang)
+                        }
+                        selector
+                            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                            .setPreferredTextLanguages(*langs)
+                            .setSelectUndeterminedTextLanguage(true)
+                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                     } else {
-                        arrayOf(lang)
+                        selector
+                            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
                     }
-                    selector
-                        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-                        .setPreferredTextLanguages(*langs)
-                        .setSelectUndeterminedTextLanguage(true)
-                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
-                } else {
-                    selector
-                        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-                }
-                exoPlayer.trackSelectionParameters = selector.build()
-                exoPlayer.prepare()
-                if (wasPlaying) {
-                    exoPlayer.play()
-                }
+                    exoPlayer.trackSelectionParameters = selector.build()
+                    exoPlayer.prepare()
+                    if (wasPlaying) {
+                        exoPlayer.play()
+                    }
+                } catch (_: Exception) {}
             }
 
             LaunchedEffect(exoPlayer) {
@@ -522,7 +556,7 @@ fun PlayerScreen(
                     duration = exoPlayer.duration.coerceAtLeast(0L)
                     isPlaying = exoPlayer.isPlaying
                     if (Math.abs(currentPos - lastSavedPos) >= 5000L && duration > 0) {
-                        viewModel.saveProgress(currentPos, duration)
+                        viewModel.saveProgress(playbackContentId, currentPos, duration)
                         lastSavedPos = currentPos
                     }
                     delay(500)
@@ -533,7 +567,8 @@ fun PlayerScreen(
                 val playerListener = object : Player.Listener {
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         if (playbackState == Player.STATE_ENDED) {
-                            if (uiState.nextEpisode != null && !uiState.isNextEpisodeDismissed) {
+                            val latestState = viewModel.uiState.value
+                            if (latestState.nextEpisode != null && !latestState.isNextEpisodeDismissed) {
                                 viewModel.playNextEpisode()
                             }
                         }
@@ -553,7 +588,7 @@ fun PlayerScreen(
                                 val currentPosition = exoPlayer.currentPosition
                                 val totalDuration = exoPlayer.duration
                                 if (totalDuration > 0) {
-                                    viewModel.saveProgress(currentPosition, totalDuration)
+                                    viewModel.saveProgress(playbackContentId, currentPosition, totalDuration)
                                 }
                             } catch (_: Exception) {}
                         }
@@ -581,7 +616,7 @@ fun PlayerScreen(
                         val finalPos = exoPlayer.currentPosition
                         val finalDur = exoPlayer.duration
                         if (finalDur > 0) {
-                            viewModel.saveProgress(finalPos, finalDur)
+                            viewModel.saveProgress(playbackContentId, finalPos, finalDur)
                         }
                     } catch (_: Exception) {}
                     activePlayer = null
@@ -602,6 +637,9 @@ fun PlayerScreen(
                     }
                 },
                 update = { view ->
+                    if (view.player != exoPlayer) {
+                        view.player = exoPlayer
+                    }
                     view.setShutterBackgroundColor(appearance.backgroundColor)
                 },
                 modifier = Modifier.fillMaxSize()
@@ -641,7 +679,8 @@ fun PlayerScreen(
                     userInteractionCount++
                 },
                 onSeekForward = {
-                    exoPlayer.seekTo((exoPlayer.currentPosition + 10000L).coerceAtMost(exoPlayer.duration))
+                    val target = exoPlayer.currentPosition + 10_000L
+                    exoPlayer.seekTo(if (exoPlayer.duration > 0L) target.coerceAtMost(exoPlayer.duration) else target)
                     showControls = true
                     userInteractionCount++
                 },
@@ -697,7 +736,10 @@ fun PlayerScreen(
                 manualEpisode = uiState.manualEpisode,
                 isUsingSessionOverride = uiState.isUsingSessionOverride,
                 isAppearancePanelOpen = uiState.isAppearancePanelOpen,
-                isSeries = contentType.equals("tv", ignoreCase = true) || contentType.equals("series", ignoreCase = true),
+                isSeries = contentType.equals("episode", ignoreCase = true) ||
+                    contentType.equals("tv_series", ignoreCase = true) ||
+                    contentType.equals("tv", ignoreCase = true) ||
+                    contentType.equals("series", ignoreCase = true),
                 onSelectTrack = { track ->
                     viewModel.selectSubtitleTrack(track)
                     applySubtitleTrack(track)

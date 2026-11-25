@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.idlix.data.model.SearchResultItem
 import com.idlix.data.repository.IdlixRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,11 +41,13 @@ class SearchViewModel(
             delay(400) // debounce
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
             try {
-                val results = repository.search(newQuery.trim())
+                val results = repository.search(newQuery.trim()).distinctBy { it.id }
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     results = results
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,

@@ -186,8 +186,9 @@ fun SettingsScreen(
                     isAuthSuccess = it.isLoggedIn
                     authFeedbackMessage = if (it.isLoggedIn) "Status akun: Berhasil terhubung" else "Belum terhubung"
                 },
-                onFailure = {
-                    authFeedbackMessage = "Status akun: Berhasil terhubung"
+                onFailure = { err ->
+                    isAuthSuccess = false
+                    authFeedbackMessage = err.localizedMessage ?: "Gagal memperbarui status akun"
                 }
             )
         }

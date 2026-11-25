@@ -16,7 +16,7 @@ data class PlayerAppearance(
         const val DEFAULT_POS_Y: Float = 0.92f
 
         val SAFE_X_RANGE = 0.15f..0.85f
-        val SAFE_Y_RANGE = 0.12f..0.95f
+        val SAFE_Y_RANGE = 0.08f..0.95f
     }
 }
 

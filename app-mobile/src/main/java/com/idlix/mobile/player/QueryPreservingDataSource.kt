@@ -37,7 +37,12 @@ class QueryPreservingDataSource(
     override fun open(dataSpec: DataSpec): Long {
         val uri = dataSpec.uri
         val uriStr = uri.toString()
-        val finalUri = if (tokenQuery.isNotBlank() && !uriStr.contains("t=")) {
+        val hasTokenParam = try {
+            uri.getQueryParameter("t") != null
+        } catch (_: Exception) {
+            false
+        }
+        val finalUri = if (tokenQuery.isNotBlank() && !hasTokenParam) {
             val delimiter = if (uriStr.contains("?")) "&" else "?"
             Uri.parse("$uriStr$delimiter$tokenQuery")
         } else {
@@ -119,8 +124,12 @@ object MediaSourceHelper {
             .build()
 
         val subUri = Uri.parse(sub.path)
+        val masterHost = try { Uri.parse(masterUrl).host } catch (_: Exception) { null }
         val subDataSourceFactory = if (subUri.scheme == "file" || subUri.scheme == null) {
             DefaultDataSource.Factory(context)
+        } else if (subUri.host != null && masterHost != null && !subUri.host.equals(masterHost, ignoreCase = true)) {
+            DefaultHttpDataSource.Factory()
+                .setUserAgent("Mozilla/5.0 (Android; Idlix)")
         } else {
             httpDataSourceFactory
         }

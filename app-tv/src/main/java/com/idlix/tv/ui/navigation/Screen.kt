@@ -1,7 +1,6 @@
 package com.idlix.tv.ui.navigation
 
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
+import android.net.Uri
 
 sealed class Screen(val route: String) {
     object Home : Screen("home")
@@ -14,7 +13,7 @@ sealed class Screen(val route: String) {
 
     object Detail : Screen("detail/{contentType}/{slug}") {
         fun createRoute(contentType: String, slug: String): String =
-            "detail/$contentType/$slug"
+            "detail/$contentType/${Uri.encode(slug)}"
     }
 
     object Player : Screen("player/{contentType}/{contentId}/{title}?poster={poster}&backdrop={backdrop}&slug={slug}&season={season}&episode={episode}") {
@@ -28,13 +27,14 @@ sealed class Screen(val route: String) {
             season: Int? = null,
             episode: Int? = null
         ): String {
-            val encodedTitle = URLEncoder.encode(title, StandardCharsets.UTF_8.toString())
-            val encodedPoster = URLEncoder.encode(poster ?: "", StandardCharsets.UTF_8.toString())
-            val encodedBackdrop = URLEncoder.encode(backdrop ?: "", StandardCharsets.UTF_8.toString())
-            val encodedSlug = URLEncoder.encode(slug ?: "", StandardCharsets.UTF_8.toString())
+            val encodedId = Uri.encode(contentId.ifBlank { "0" })
+            val encodedTitle = Uri.encode(title.ifBlank { "Video" })
+            val encodedPoster = Uri.encode(poster ?: "")
+            val encodedBackdrop = Uri.encode(backdrop ?: "")
+            val encodedSlug = Uri.encode(slug ?: "")
             val seasonParam = season?.toString() ?: ""
             val episodeParam = episode?.toString() ?: ""
-            return "player/$contentType/$contentId/$encodedTitle?poster=$encodedPoster&backdrop=$encodedBackdrop&slug=$encodedSlug&season=$seasonParam&episode=$episodeParam"
+            return "player/$contentType/$encodedId/$encodedTitle?poster=$encodedPoster&backdrop=$encodedBackdrop&slug=$encodedSlug&season=$seasonParam&episode=$episodeParam"
         }
     }
 }

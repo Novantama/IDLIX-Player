@@ -1,6 +1,7 @@
 package com.idlix.mobile.ui.screens.detail
 
 import android.app.Application
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -72,7 +73,8 @@ data class DetailUiState(
 
     // Next Episode Auto-Prompt
     val nextEpisode: NextEpisodeInfo? = null,
-    val isNextEpisodeDismissed: Boolean = false
+    val isNextEpisodeDismissed: Boolean = false,
+    val isBookmarked: Boolean = false
 )
 
 class DetailViewModel(
@@ -81,6 +83,7 @@ class DetailViewModel(
 
     private val repository = IdlixRepository()
     private val historyStore = WatchHistoryStore.getInstance(application.applicationContext)
+    private val bookmarkPrefs = application.applicationContext.getSharedPreferences("idlix_watchlist", Context.MODE_PRIVATE)
 
     private val _uiState = MutableStateFlow(DetailUiState())
     val uiState: StateFlow<DetailUiState> = _uiState.asStateFlow()
@@ -96,18 +99,25 @@ class DetailViewModel(
 
     private var playbackJob: Job? = null
     private var resolveNextEpisodeJob: Job? = null
+    private var seasonLoadJob: Job? = null
 
     fun loadDetail(contentType: String, slug: String) {
         viewModelScope.launch {
+            val bookmarkKey = "${if (contentType == "episode" || contentType == "tv_series") "series" else contentType}:$slug"
+            val savedBookmark = bookmarkPrefs.getBoolean(bookmarkKey, false)
             _uiState.value = _uiState.value.copy(
                 isLoadingDetail = true,
-                detailError = null
+                detailError = null,
+                isBookmarked = savedBookmark
             )
 
             try {
-                if (contentType == "tv_series" || contentType == "series") {
+                if (contentType == "tv_series" || contentType == "series" || contentType == "episode") {
                     val series = repository.getSeriesDetail(slug)
                     if (series != null) {
+                        currentContentType = "episode"
+                        currentContentTitle = series.title
+                        currentSlug = series.slug
                         val allSeasons = series.seasons
                         val defaultSeason = series.defaultSeason
                         val defaultSeasonNum = defaultSeason?.seasonNumber
@@ -119,6 +129,8 @@ class DetailViewModel(
                             )
                         val initialEpisodes = defaultSeason?.episodes ?: emptyList()
                         val firstEp = initialEpisodes.firstOrNull()
+                        currentSeasonNumber = initialSeason.seasonNumber
+                        currentEpisodeNumber = firstEp?.episodeNumber
 
                         _uiState.value = _uiState.value.copy(
                             isLoadingDetail = false,
@@ -137,6 +149,11 @@ class DetailViewModel(
                 } else {
                     val movie = repository.getMovieDetail(slug)
                     if (movie != null) {
+                        currentContentType = "movie"
+                        currentContentTitle = movie.title
+                        currentSlug = movie.slug
+                        currentSeasonNumber = null
+                        currentEpisodeNumber = null
                         _uiState.value = _uiState.value.copy(
                             isLoadingDetail = false,
                             movie = movie,
@@ -165,7 +182,8 @@ class DetailViewModel(
         if (_uiState.value.selectedSeason?.seasonNumber == season.seasonNumber && _uiState.value.episodes.isNotEmpty()) {
             return
         }
-        viewModelScope.launch {
+        seasonLoadJob?.cancel()
+        seasonLoadJob = viewModelScope.launch {
             val defaultSeason = series.defaultSeason
             if (defaultSeason != null && defaultSeason.seasonNumber == season.seasonNumber && defaultSeason.episodes.isNotEmpty()) {
                 val cachedEpisodes = defaultSeason.episodes
@@ -177,16 +195,15 @@ class DetailViewModel(
                 return@launch
             }
 
-            _uiState.value = _uiState.value.copy(selectedSeason = season)
+            _uiState.value = _uiState.value.copy(selectedSeason = season, episodes = emptyList())
             try {
                 val epRes = repository.getEpisodeDetail(series.slug, season.seasonNumber, 1)
+                if (_uiState.value.selectedSeason?.seasonNumber != season.seasonNumber) return@launch
                 val newEpisodes = epRes?.season?.episodes ?: emptyList()
-                if (newEpisodes.isNotEmpty()) {
-                    _uiState.value = _uiState.value.copy(
-                        episodes = newEpisodes,
-                        selectedEpisode = newEpisodes.firstOrNull()
-                    )
-                }
+                _uiState.value = _uiState.value.copy(
+                    episodes = newEpisodes,
+                    selectedEpisode = newEpisodes.firstOrNull()
+                )
             } catch (e: Exception) {
                 Log.w("DetailViewModel", "Failed to fetch episodes for season ${season.seasonNumber}: ${e.message}")
             }
@@ -288,6 +305,8 @@ class DetailViewModel(
         // Cancel in-flight playback and resolve jobs to prevent race conditions and double play
         playbackJob?.cancel()
         resolveNextEpisodeJob?.cancel()
+        subdlSearchJob?.cancel()
+        sessionQueryOverride = null
 
         currentContentId = contentId
         currentContentType = contentType
@@ -319,7 +338,13 @@ class DetailViewModel(
                 resolvedStream = null,
                 initialPositionMs = savedPos,
                 nextEpisode = null,
-                isNextEpisodeDismissed = false
+                isNextEpisodeDismissed = false,
+                subdlSubtitles = emptyList(),
+                subdlCandidates = emptyList(),
+                subdlError = null,
+                subdlActiveQuery = null,
+                isSearchingSubdl = false,
+                isUsingSessionOverride = false
             )
 
             // Asynchronously resolve next episode for Series
@@ -345,14 +370,23 @@ class DetailViewModel(
             )
 
             result.onSuccess { resolved ->
-                // Always prioritize Bahasa Indonesia ("id" / "in") by default
-                val defaultSub = resolved.subtitles.firstOrNull { it.lang.equals("id", ignoreCase = true) || it.lang.equals("in", ignoreCase = true) }
-                    ?: resolved.subtitles.firstOrNull { it.lang.equals("en", ignoreCase = true) }
-                    ?: resolved.subtitles.firstOrNull()
+                val preSelected = _uiState.value.selectedSubtitle
+                val finalSubtitles = if (preSelected != null && resolved.subtitles.none { it.path == preSelected.path }) {
+                    listOf(preSelected) + resolved.subtitles
+                } else {
+                    resolved.subtitles
+                }
+                val finalResolved = resolved.copy(subtitles = finalSubtitles)
+
+                // Always prioritize pre-selected subtitle or Bahasa Indonesia ("id" / "in") by default
+                val defaultSub = preSelected
+                    ?: finalSubtitles.firstOrNull { it.lang.equals("id", ignoreCase = true) || it.lang.equals("in", ignoreCase = true) }
+                    ?: finalSubtitles.firstOrNull { it.lang.equals("en", ignoreCase = true) }
+                    ?: finalSubtitles.firstOrNull()
 
                 _uiState.value = _uiState.value.copy(
                     isStreamLoading = false,
-                    resolvedStream = resolved,
+                    resolvedStream = finalResolved,
                     selectedSubtitle = defaultSub,
                     isSubtitleEnabled = defaultSub != null
                 )
@@ -725,6 +759,7 @@ class DetailViewModel(
         }
 
         // 3. Not yet downloaded: fetch from SubDL in background for this specific language
+        val requestContentId = currentContentId
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSearchingSubdl = true)
             val ctx = getApplication<Application>().applicationContext
@@ -736,21 +771,20 @@ class DetailViewModel(
                 targetLang = langCode,
                 context = ctx
             )
+            if (currentContentId != requestContentId) return@launch
             _uiState.value = _uiState.value.copy(isSearchingSubdl = false)
 
             if (downloaded != null) {
                 val currentStream = _uiState.value.resolvedStream
-                if (currentStream != null) {
-                    val updatedSubs = currentStream.subtitles.toMutableList()
-                    updatedSubs.removeAll { it.path == downloaded.path }
-                    updatedSubs.add(0, downloaded)
-                    _uiState.value = _uiState.value.copy(
-                        resolvedStream = currentStream.copy(subtitles = updatedSubs),
-                        selectedSubtitle = downloaded,
-                        isSubtitleEnabled = true,
-                        isSubtitlePickerVisible = false
-                    )
-                }
+                val updatedSubs = currentStream?.subtitles?.toMutableList() ?: mutableListOf()
+                updatedSubs.removeAll { it.path == downloaded.path }
+                updatedSubs.add(0, downloaded)
+                _uiState.value = _uiState.value.copy(
+                    resolvedStream = currentStream?.copy(subtitles = updatedSubs),
+                    selectedSubtitle = downloaded,
+                    isSubtitleEnabled = true,
+                    isSubtitlePickerVisible = false
+                )
             } else {
                 // If direct auto-download didn't return a match, open the modal sheet so the user can pick/search
                 openSubtitlePicker()
@@ -762,12 +796,14 @@ class DetailViewModel(
         sub: SubdlSubtitle,
         onSubtitleReady: (SubtitleTrack) -> Unit
     ) {
+        val requestContentId = currentContentId
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSearchingSubdl = true)
             val downloaded = SubdlRepository.downloadSubtitle(
                 sub = sub,
                 context = getApplication<Application>().applicationContext
             )
+            if (currentContentId != requestContentId) return@launch
             _uiState.value = _uiState.value.copy(isSearchingSubdl = false)
 
             if (downloaded != null) {
@@ -797,6 +833,13 @@ class DetailViewModel(
     fun toggleSubtitle() {
         val current = _uiState.value.isSubtitleEnabled
         _uiState.value = _uiState.value.copy(isSubtitleEnabled = !current)
+    }
+
+    fun toggleBookmark(contentType: String, slug: String) {
+        val bookmarkKey = "${if (contentType == "episode" || contentType == "tv_series") "series" else contentType}:$slug"
+        val newValue = !_uiState.value.isBookmarked
+        bookmarkPrefs.edit().putBoolean(bookmarkKey, newValue).apply()
+        _uiState.value = _uiState.value.copy(isBookmarked = newValue)
     }
 
     fun saveProgress(currentPosMs: Long, durationMs: Long) {
