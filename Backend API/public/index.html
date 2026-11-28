@@ -643,11 +643,14 @@
             Membuka gate token Cloudflare & menyiapkan HLS stream. Proses ini memakan waktu 10-15 detik saat pertama kali.
           </div>
         </div>
-        <video id="videoElement" controls playsinline></video>
+        <video id="videoElement" controls playsinline crossorigin="anonymous"></video>
       </div>
 
       <div class="player-episodes" id="seriesEpisodesWrap">
-        <div class="episodes-title" id="episodesTitle">Pilih Episode:</div>
+        <div class="episodes-title" style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <span id="episodesTitle">Pilih Episode:</span>
+          <select id="seasonSelect" class="ep-btn" style="display: none;"></select>
+        </div>
         <div class="episodes-list" id="episodesList"></div>
       </div>
 
@@ -670,6 +673,23 @@
     let searchQuery = '';
     let hlsInstance = null;
     let currentStreamUrl = '';
+    let playbackSessionId = 0;
+    let currentResolveAbort = null;
+
+    function escapeHtml(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function normalizeContentType(rawType, item) {
+      if (rawType === 'series' || rawType === 'tv_series') return 'series';
+      if (rawType === 'movie') return 'movie';
+      return item?.firstAirDate ? 'series' : 'movie';
+    }
 
     const TMDB_POSTER = 'https://image.tmdb.org/t/p/w500';
     const TMDB_BACKDROP = 'https://image.tmdb.org/t/p/original';
@@ -765,23 +785,26 @@
 
       grid.innerHTML = items.map(item => {
         const title = item.title || item.name || 'Tanpa Judul';
-        const year = (item.releaseDate || item.firstAirDate || '').split('-')[0] || '';
+        const safeTitle = escapeHtml(title);
+        const year = escapeHtml((item.releaseDate || item.firstAirDate || '').split('-')[0] || '');
         const rating = item.voteAverage && parseFloat(item.voteAverage) > 0 ? parseFloat(item.voteAverage).toFixed(1) : '';
-        const quality = item.quality || 'HD';
-        const poster = getPosterUrl(item.posterPath);
-        const type = item.contentType || (item.firstAirDate ? 'series' : 'movie');
+        const quality = escapeHtml(item.quality || 'HD');
+        const poster = escapeHtml(getPosterUrl(item.posterPath));
+        const type = normalizeContentType(item.contentType, item);
+        const id = escapeHtml(item.id || '');
+        const slug = escapeHtml(item.slug || '');
 
         return `
-          <div class="card" onclick="openPlayer('${type}', '${item.id}', '${encodeURIComponent(title)}', '${item.slug || ''}')">
+          <div class="card" data-type="${type}" data-id="${id}" data-title="${safeTitle}" data-slug="${slug}">
             <div class="poster-wrap">
-              <img src="${poster}" alt="${title}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=400&q=80'">
+              <img src="${poster}" alt="${safeTitle}" loading="lazy" onerror="this.src='https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=400&q=80'">
               <div class="card-badges">
                 <span class="badge badge-quality">${quality}</span>
                 ${rating ? `<span class="badge badge-rating">⭐ ${rating}</span>` : ''}
               </div>
             </div>
             <div class="card-info">
-              <div class="card-title" title="${title}">${title}</div>
+              <div class="card-title" title="${safeTitle}">${safeTitle}</div>
               <div class="card-meta">
                 <span>${year}</span>
                 <span style="text-transform: capitalize;">${type === 'series' ? 'Serial TV' : 'Film'}</span>
@@ -791,6 +814,16 @@
         `;
       }).join('');
     }
+
+    // Event delegation so titles containing quotes/special chars always work cleanly
+    document.getElementById('contentGrid').addEventListener('click', (event) => {
+      const card = event.target.closest('.card');
+      if (!card) return;
+      const { type, id, title, slug } = card.dataset;
+      if (id) {
+        openPlayer(type || 'movie', id, title || 'Tanpa Judul', slug || '');
+      }
+    });
 
     // Setup Spotlight Hero
     function setupHero(item) {
@@ -804,9 +837,9 @@
       document.getElementById('heroRating').textContent = `⭐ ${parseFloat(item.voteAverage || 7.5).toFixed(1)}`;
       document.getElementById('heroQuality').textContent = item.quality || 'WEB-DL';
 
-      const type = item.contentType || 'movie';
+      const type = normalizeContentType(item.contentType, item);
       document.getElementById('heroPlayBtn').onclick = () => {
-        openPlayer(type, item.id, encodeURIComponent(item.title), item.slug);
+        openPlayer(type, item.id, item.title || item.name || 'Tanpa Judul', item.slug || '');
       };
 
       hero.style.display = 'flex';
@@ -827,156 +860,325 @@
       loadContent();
     }
 
-    // Open Video Player
-    async function openPlayer(contentType, id, titleEncoded, slug) {
-      const title = decodeURIComponent(titleEncoded);
-      const modal = document.getElementById('playerModal');
+    function resetVideoPlayer() {
       const video = document.getElementById('videoElement');
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+      }
+      video.pause();
+      while (video.firstChild) {
+        video.removeChild(video.firstChild);
+      }
+      video.removeAttribute('src');
+      video.load();
+      currentStreamUrl = '';
+    }
+
+    // Open Video Player
+    async function openPlayer(contentType, id, title, slug = '') {
+      playbackSessionId += 1;
+      const mySession = playbackSessionId;
+      if (currentResolveAbort) {
+        currentResolveAbort.abort();
+      }
+      currentResolveAbort = new AbortController();
+
+      const modal = document.getElementById('playerModal');
       const loading = document.getElementById('playerLoading');
       const statusText = document.getElementById('loadingStatusText');
       const seriesWrap = document.getElementById('seriesEpisodesWrap');
+      const badge = document.getElementById('streamStatusBadge');
 
+      resetVideoPlayer();
       document.getElementById('playerTitle').textContent = title;
       modal.classList.add('open');
       loading.style.display = 'flex';
       statusText.textContent = 'Menghubungkan ke scraper & membuka token...';
+      badge.textContent = 'Memuat...';
+      badge.style.color = '#38bdf8';
       seriesWrap.style.display = 'none';
 
-      // If it's a TV series, fetch episodes list first
-      if (contentType === 'series' && slug) {
+      const normalizedType = normalizeContentType(contentType);
+
+      // If it's a TV series, fetch seasons & episodes list first
+      if (normalizedType === 'series' && (slug || id)) {
         try {
           statusText.textContent = 'Memuat daftar episode serial...';
-          const seriesRes = await fetch(`/api/series/${slug}`);
+          const seriesRes = await fetch(`/api/series/${encodeURIComponent(slug || id)}`, {
+            signal: currentResolveAbort.signal
+          });
+          if (mySession !== playbackSessionId) return;
+
           const seriesData = await seriesRes.json();
           const series = seriesData.data || seriesData;
 
+          const defaultSeasonNum = series.defaultSeason?.seasonNumber || series.seasons?.[0]?.seasonNumber || 1;
           const episodes = series.defaultSeason?.episodes || series.seasons?.[0]?.episodes || [];
           if (episodes.length > 0) {
-            renderEpisodes(episodes, series);
-            // Play first episode
-            playEpisodeStream(episodes[0].id, `${title} - Episode 1`);
+            renderEpisodes(episodes, series, defaultSeasonNum);
+            const ep1Num = episodes[0].episodeNumber || 1;
+            playEpisodeStream(episodes[0].id, `${title} - S${defaultSeasonNum}E${ep1Num}`, 'episode', slug || series.slug || '');
             return;
           }
         } catch (e) {
+          if (e.name === 'AbortError' || mySession !== playbackSessionId) return;
           console.warn('Series fetch err:', e);
         }
       }
 
-      // Play Movie or Single Item
-      playEpisodeStream(id, title, contentType);
+      // Play Movie or Single Item (fallback resolves first episode for series if series detail had no inline episodes)
+      playEpisodeStream(id, title, normalizedType, slug);
     }
 
-    // Stream Video URL via HLS
-    async function playEpisodeStream(contentId, streamTitle, contentType = 'movie') {
+    // Stream Video URL via local HLS & Subtitle proxy
+    async function playEpisodeStream(contentId, streamTitle, contentType = 'movie', slug = '') {
+      playbackSessionId += 1;
+      const mySession = playbackSessionId;
+      if (currentResolveAbort) {
+        currentResolveAbort.abort();
+      }
+      currentResolveAbort = new AbortController();
+
       const video = document.getElementById('videoElement');
       const loading = document.getElementById('playerLoading');
       const statusText = document.getElementById('loadingStatusText');
+      const badge = document.getElementById('streamStatusBadge');
 
+      resetVideoPlayer();
       loading.style.display = 'flex';
       statusText.textContent = 'Menyelesaikan countdown & verifikasi HLS playlist...';
+      badge.textContent = 'Menghubungkan...';
+      badge.style.color = '#38bdf8';
       document.getElementById('playerTitle').textContent = streamTitle;
 
       try {
-        const resolveUrl = `/api/playback/resolve?contentType=${contentType}&contentId=${contentId}&contentTitle=${encodeURIComponent(streamTitle)}`;
-        const res = await fetch(resolveUrl);
+        const params = new URLSearchParams({
+          contentType: contentType,
+          contentId: String(contentId),
+          contentTitle: streamTitle
+        });
+        if (slug) {
+          params.set('slug', slug);
+        }
+
+        const res = await fetch(`/api/playback/resolve?${params.toString()}`, {
+          signal: currentResolveAbort.signal
+        });
         const data = await res.json();
 
-        if (!data || !data.hlsMasterUrl) {
+        if (mySession !== playbackSessionId) return;
+
+        if (!res.ok || !data || !data.hlsMasterUrl) {
           throw new Error(data?.error || 'URL stream video tidak ditemukan.');
         }
 
         currentStreamUrl = data.hlsMasterUrl;
+        const proxiedHlsUrl = `/api/proxy/hls?url=${encodeURIComponent(data.hlsMasterUrl)}`;
         statusText.textContent = 'Memuat video stream...';
 
-        // Load HLS video
-        if (Hls.isSupported()) {
-          if (hlsInstance) {
-            hlsInstance.destroy();
-          }
-          hlsInstance = new Hls({
-            enableWorker: true,
-            lowLatencyMode: false,
-            backBufferLength: 90
-          });
-          hlsInstance.loadSource(data.hlsMasterUrl);
-          hlsInstance.attachMedia(video);
-          hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-            loading.style.display = 'none';
-            video.play().catch(() => {});
-          });
-          hlsInstance.on(Hls.Events.ERROR, (event, err) => {
-            if (err.fatal) {
-              statusText.textContent = 'Gagal memuat video stream HLS.';
-            }
-          });
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          // Safari native HLS
-          video.src = data.hlsMasterUrl;
-          video.addEventListener('loadedmetadata', () => {
-            loading.style.display = 'none';
-            video.play().catch(() => {});
-          });
-        } else {
-          statusText.textContent = 'Browser Anda tidak mendukung pemutaran HLS streaming.';
-        }
-
-        // Subtitles
+        // Load Subtitles via CORS + SRT->WebVTT proxy before attaching video
         if (data.subtitles && Array.isArray(data.subtitles)) {
-          // Remove old tracks
-          while (video.firstChild) {
-            video.removeChild(video.firstChild);
-          }
           data.subtitles.forEach((sub, idx) => {
+            if (!sub?.path) return;
             const track = document.createElement('track');
             track.kind = 'subtitles';
             track.label = sub.label || sub.lang || `Subtitle ${idx + 1}`;
             track.srclang = sub.lang || 'id';
-            track.src = sub.path;
-            if (sub.lang === 'id' || sub.label?.toLowerCase().includes('indo') || idx === 0) {
+            track.src = `/api/proxy/subtitle?url=${encodeURIComponent(sub.path)}`;
+            const isIndo = sub.lang === 'id' || sub.lang === 'ind' || sub.label?.toLowerCase().includes('indo');
+            if (isIndo || idx === 0) {
               track.default = true;
             }
             video.appendChild(track);
           });
         }
 
+        const showRetryError = (msg) => {
+          loading.style.display = 'flex';
+          badge.textContent = 'Error';
+          badge.style.color = '#ef4444';
+          statusText.innerHTML = '';
+          const errSpan = document.createElement('span');
+          errSpan.style.color = '#ef4444';
+          errSpan.textContent = msg;
+          statusText.appendChild(errSpan);
+          statusText.appendChild(document.createElement('br'));
+          statusText.appendChild(document.createElement('br'));
+          const retryBtn = document.createElement('button');
+          retryBtn.className = 'btn-secondary';
+          retryBtn.textContent = 'Coba Lagi';
+          retryBtn.addEventListener('click', () => playEpisodeStream(contentId, streamTitle, contentType, slug));
+          statusText.appendChild(retryBtn);
+        };
+
+        const enableDefaultTrack = () => {
+          if (!video.textTracks || video.textTracks.length === 0) return;
+          let targetIdx = -1;
+          for (let i = 0; i < video.textTracks.length; i++) {
+            const t = video.textTracks[i];
+            if (t.language === 'id' || t.language === 'ind' || (t.label || '').toLowerCase().includes('indo')) {
+              targetIdx = i;
+              break;
+            }
+          }
+          if (targetIdx === -1) targetIdx = 0;
+          for (let i = 0; i < video.textTracks.length; i++) {
+            video.textTracks[i].mode = i === targetIdx ? 'showing' : 'disabled';
+          }
+        };
+
+        // Load HLS video through local proxy
+        if (Hls.isSupported()) {
+          let mediaRecoveryAttempts = 0;
+          let networkRecoveryAttempts = 0;
+
+          hlsInstance = new Hls({
+            enableWorker: true,
+            lowLatencyMode: false,
+            backBufferLength: 90,
+            maxBufferLength: 30,
+            manifestLoadingMaxRetry: 3,
+            fragLoadingMaxRetry: 4
+          });
+          hlsInstance.loadSource(proxiedHlsUrl);
+          hlsInstance.attachMedia(video);
+          hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+            if (mySession !== playbackSessionId) return;
+            loading.style.display = 'none';
+            badge.textContent = 'Memutar';
+            badge.style.color = '#4ade80';
+            enableDefaultTrack();
+            video.play().catch(() => {});
+          });
+          hlsInstance.on(Hls.Events.ERROR, (_event, err) => {
+            if (mySession !== playbackSessionId || !err.fatal) return;
+            console.warn('[HLS Error]', err.type, err.details, err.response?.code);
+            if (err.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveryAttempts < 2) {
+              mediaRecoveryAttempts += 1;
+              hlsInstance.recoverMediaError();
+              return;
+            }
+            if (err.type === Hls.ErrorTypes.NETWORK_ERROR && networkRecoveryAttempts < 2) {
+              networkRecoveryAttempts += 1;
+              hlsInstance.startLoad();
+              return;
+            }
+            const codeHint = err.response?.code ? ` (HTTP ${err.response.code})` : '';
+            showRetryError(`Gagal memuat video stream HLS${codeHint}: ${err.details || 'kesalahan jaringan'}`);
+          });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          // Safari native HLS
+          video.src = proxiedHlsUrl;
+          video.addEventListener('loadedmetadata', () => {
+            if (mySession !== playbackSessionId) return;
+            loading.style.display = 'none';
+            badge.textContent = 'Memutar';
+            badge.style.color = '#4ade80';
+            enableDefaultTrack();
+            video.play().catch(() => {});
+          }, { once: true });
+        } else {
+          statusText.textContent = 'Browser Anda tidak mendukung pemutaran HLS streaming.';
+        }
+
       } catch (err) {
-        statusText.innerHTML = `<span style="color:#ef4444;">Gagal memutar: ${err.message}</span><br><br><button class="btn-secondary" onclick="playEpisodeStream('${contentId}', '${streamTitle}', '${contentType}')">Coba Lagi</button>`;
+        if (err.name === 'AbortError' || mySession !== playbackSessionId) return;
+        badge.textContent = 'Error';
+        badge.style.color = '#ef4444';
+        statusText.innerHTML = '';
+        const errSpan = document.createElement('span');
+        errSpan.style.color = '#ef4444';
+        errSpan.textContent = `Gagal memutar: ${err.message}`;
+        statusText.appendChild(errSpan);
+        statusText.appendChild(document.createElement('br'));
+        statusText.appendChild(document.createElement('br'));
+        const retryBtn = document.createElement('button');
+        retryBtn.className = 'btn-secondary';
+        retryBtn.textContent = 'Coba Lagi';
+        retryBtn.addEventListener('click', () => playEpisodeStream(contentId, streamTitle, contentType, slug));
+        statusText.appendChild(retryBtn);
       }
     }
 
-    // Render Series Episode List
-    function renderEpisodes(episodes, series) {
+    // Render Series Episode List (with optional multi-season selector)
+    function renderEpisodes(episodes, series, activeSeasonNum = 1) {
       const wrap = document.getElementById('seriesEpisodesWrap');
       const list = document.getElementById('episodesList');
+      const seasonSelect = document.getElementById('seasonSelect');
       wrap.style.display = 'block';
 
-      list.innerHTML = episodes.map((ep, idx) => {
-        const epNum = ep.episodeNumber || (idx + 1);
-        return `
-          <button class="ep-btn ${idx === 0 ? 'active' : ''}" onclick="selectEpisode(this, '${ep.id}', '${series.title} - Episode ${epNum}')">
-            Episode ${epNum}
-          </button>
-        `;
-      }).join('');
+      const seriesTitle = series.title || series.name || 'Serial TV';
+      const seasons = Array.isArray(series.seasons) ? series.seasons : [];
+
+      if (seasons.length > 1) {
+        seasonSelect.innerHTML = '';
+        seasons.forEach((s) => {
+          const opt = document.createElement('option');
+          opt.value = String(s.seasonNumber);
+          opt.textContent = `Season ${s.seasonNumber}`;
+          if (Number(s.seasonNumber) === Number(activeSeasonNum)) {
+            opt.selected = true;
+          }
+          seasonSelect.appendChild(opt);
+        });
+        seasonSelect.style.display = 'inline-block';
+        seasonSelect.onchange = async () => {
+          const chosenNum = Number(seasonSelect.value);
+          const matchedSeason = seasons.find((s) => Number(s.seasonNumber) === chosenNum);
+          let nextEpisodes = matchedSeason?.episodes || [];
+          if (nextEpisodes.length === 0 && series.defaultSeason && Number(series.defaultSeason.seasonNumber) === chosenNum) {
+            nextEpisodes = series.defaultSeason.episodes || [];
+          }
+          if (nextEpisodes.length === 0 && series.slug) {
+            try {
+              const epRes = await fetch(`/api/series/${encodeURIComponent(series.slug)}/season/${chosenNum}/episode/1`);
+              const epJson = await epRes.json();
+              const data = epJson.data || epJson;
+              nextEpisodes = data.season?.episodes || data.episodes || (data.episode ? [data.episode] : []);
+            } catch (_) {}
+          }
+          renderEpisodesList(nextEpisodes, seriesTitle, chosenNum, series.slug || '');
+        };
+      } else {
+        seasonSelect.style.display = 'none';
+        seasonSelect.onchange = null;
+      }
+
+      renderEpisodesList(episodes, seriesTitle, activeSeasonNum, series.slug || '');
     }
 
-    function selectEpisode(btn, epId, epTitle) {
+    function renderEpisodesList(episodes, seriesTitle, seasonNum, seriesSlug) {
+      const list = document.getElementById('episodesList');
+      list.innerHTML = '';
+      episodes.forEach((ep, idx) => {
+        const epNum = ep.episodeNumber || (idx + 1);
+        const btn = document.createElement('button');
+        btn.className = `ep-btn ${idx === 0 ? 'active' : ''}`;
+        btn.textContent = `Episode ${epNum}`;
+        btn.addEventListener('click', () => {
+          selectEpisode(btn, ep.id, `${seriesTitle} - S${seasonNum}E${epNum}`, seriesSlug);
+        });
+        list.appendChild(btn);
+      });
+    }
+
+    function selectEpisode(btn, epId, epTitle, seriesSlug = '') {
       document.querySelectorAll('.ep-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      playEpisodeStream(epId, epTitle, 'episode');
+      playEpisodeStream(epId, epTitle, 'episode', seriesSlug);
     }
 
     // Close Player
     function closePlayer() {
-      const modal = document.getElementById('playerModal');
-      const video = document.getElementById('videoElement');
-      modal.classList.remove('open');
-      video.pause();
-      if (hlsInstance) {
-        hlsInstance.destroy();
-        hlsInstance = null;
+      playbackSessionId += 1;
+      if (currentResolveAbort) {
+        currentResolveAbort.abort();
+        currentResolveAbort = null;
       }
-      video.src = '';
+      const modal = document.getElementById('playerModal');
+      modal.classList.remove('open');
+      resetVideoPlayer();
     }
 
     // Copy stream link

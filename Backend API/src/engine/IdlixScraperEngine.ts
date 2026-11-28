@@ -299,6 +299,7 @@ export class IdlixScraperEngine {
       body?: any;
       headers?: Record<string, string>;
       timeoutMs?: number;
+      retryOnCf?: boolean;
     } = {}
   ): Promise<{ status: number; data: T }> {
     await this.init();
@@ -307,7 +308,7 @@ export class IdlixScraperEngine {
       throw new Error('Browser page session is closed');
     }
 
-    const { method = 'GET', body, headers = {} } = options;
+    const { method = 'GET', body, headers = {}, retryOnCf = true } = options;
     let url = endpoint;
     if (endpoint.startsWith('http')) {
       try {
@@ -370,7 +371,7 @@ export class IdlixScraperEngine {
         throw new Error(result.error);
       }
 
-      // If Cloudflare returns 403 interstitial, mark session invalid so it re-solves next time
+      // If Cloudflare returns 403 interstitial, reset session and retry once
       if (
         result.status === 403 &&
         typeof result.data === 'string' &&
@@ -381,6 +382,11 @@ export class IdlixScraperEngine {
         console.warn(`[ScraperEngine] Received Cloudflare 403 challenge for ${url}. Invalidating scraper session.`);
         this.isReady = false;
         this.page = null;
+        if (retryOnCf) {
+          console.log(`[ScraperEngine] Re-initializing session and retrying ${url}...`);
+          await this.init();
+          return this.executeFetch<T>(endpoint, { ...options, retryOnCf: false });
+        }
       }
 
       // If upstream session is expired or revoked (401 Unauthorized), reset logged-in state
@@ -405,12 +411,74 @@ export class IdlixScraperEngine {
   }
 
   /**
+   * Redeems a playback claim against Majorplay CDN or IDLIX endpoint.
+   * Uses Node-side fetch for external CDN hosts so Referer/Origin headers are sent reliably without browser CORS limits.
+   */
+  public async redeemPlaybackUrl(
+    redeemUrl: string,
+    claim: string,
+    mode = 'browser'
+  ): Promise<{ status: number; data: any }> {
+    let isExternalHost = false;
+    if (redeemUrl.startsWith('http://') || redeemUrl.startsWith('https://')) {
+      try {
+        isExternalHost = new URL(redeemUrl).origin !== new URL(this.baseUrl).origin;
+      } catch (_) {}
+    }
+
+    if (isExternalHost) {
+      try {
+        const res = await fetch(redeemUrl, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json, text/plain, */*',
+            'Content-Type': 'application/json',
+            Referer: `${this.baseUrl}/`,
+            Origin: this.baseUrl,
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          },
+          body: JSON.stringify({ claim, mode }),
+          signal: AbortSignal.timeout(20000),
+        });
+
+        const text = await res.text();
+        let data: any = null;
+        try {
+          data = JSON.parse(text);
+        } catch (_) {
+          data = text;
+        }
+
+        if (res.ok && data?.url) {
+          return { status: res.status, data };
+        }
+        console.warn(
+          `[ScraperEngine] Node-side redeem returned status ${res.status} for ${redeemUrl}, falling back to browser fetch`
+        );
+      } catch (err: any) {
+        console.warn(`[ScraperEngine] Node-side redeem failed (${err?.message}), falling back to browser fetch`);
+      }
+    }
+
+    return this.executeFetch(redeemUrl, {
+      method: 'POST',
+      body: { claim, mode },
+      headers: {
+        Referer: `${this.baseUrl}/`,
+        Origin: this.baseUrl,
+      },
+    });
+  }
+
+  /**
    * Resolves complete HLS playback in a single call for high performance
    */
   public async resolvePlayback(
     contentType: string,
     contentId: string,
-    contentTitle?: string
+    contentTitle?: string,
+    slug?: string
   ): Promise<ResolvedPlaybackResult> {
     await this.init();
     await this.ensureAuthenticated();
@@ -418,13 +486,18 @@ export class IdlixScraperEngine {
     let targetType = contentType;
     let targetId = contentId;
 
-    // Handle series: if tv_series is requested, resolve first episode of season 1
-    if (contentType === 'tv_series') {
-      const seriesRes = await this.executeFetch(`/api/series/${contentId}`);
-      const series = seriesRes.data;
+    // Handle series: if tv_series or series is requested, resolve first episode of season 1
+    if (contentType === 'tv_series' || contentType === 'series') {
+      const seriesIdentifier = slug || contentId;
+      let seriesRes = await this.executeFetch(`/api/series/${seriesIdentifier}`);
+      if (seriesRes.status !== 200 && slug && slug !== contentId) {
+        seriesRes = await this.executeFetch(`/api/series/${contentId}`);
+      }
+      const series = seriesRes.data?.data || seriesRes.data;
       const firstEp =
         series?.defaultSeason?.episodes?.[0] ||
-        (series?.seasons?.[0]
+        series?.seasons?.[0]?.episodes?.[0] ||
+        (series?.seasons?.[0] && series?.slug
           ? (await this.executeFetch(`/api/series/${series.slug}/season/${series.seasons[0].seasonNumber}/episode/1`)).data?.episode
           : null);
 
@@ -445,7 +518,8 @@ export class IdlixScraperEngine {
     }
     const playInfo = playInfoRes.data;
     if (!playInfo?.gateToken) {
-      throw new Error('Failed to obtain playback gate token from provider');
+      const errDetail = playInfo?.error || playInfo?.message || `status ${playInfoRes.status}`;
+      throw new Error(`Failed to obtain playback gate token from provider (${errDetail})`);
     }
 
     // Extract device ID (did) from gateToken payload
@@ -466,12 +540,12 @@ export class IdlixScraperEngine {
 
     if (waitMs > 0) {
       console.log(`[ScraperEngine] Synchronizing with provider countdown (${Math.round(waitMs / 1000)}s)...`);
-      await new Promise((resolve) => setTimeout(resolve, Math.min(waitMs + 500, 16000)));
+      await new Promise((resolve) => setTimeout(resolve, Math.min(waitMs + 500, 30000)));
     }
 
     // Step 3: Claim session
     let claimRes: any = null;
-    for (let attempt = 1; attempt <= 10; attempt++) {
+    for (let attempt = 1; attempt <= 15; attempt++) {
       try {
         const claimResp = await this.executeFetch('/api/watch/session/claim', {
           method: 'POST',
@@ -482,10 +556,10 @@ export class IdlixScraperEngine {
         if (claimResp.status === 403 || claimResp.status === 401) {
           console.warn(`[ScraperEngine] Claim received status ${claimResp.status}, refreshing user session...`);
           this.isLoggedIn = false;
-          await this.ensureAuthenticated();
+          await this.ensureAuthenticated(true);
         }
 
-        if (claimResp.data?.kind === 'pentos' && claimResp.data?.claim) {
+        if (claimResp.data?.claim && (!claimResp.data?.kind || claimResp.data?.kind === 'pentos')) {
           claimRes = claimResp.data;
           break;
         }
@@ -503,18 +577,11 @@ export class IdlixScraperEngine {
       redeemUrl = '/api' + redeemUrl;
     }
 
-    const redeemResp = await this.executeFetch(redeemUrl, {
-      method: 'POST',
-      body: { claim: claimRes.claim, mode: 'browser' },
-      headers: {
-        Referer: `${this.baseUrl}/`,
-        Origin: this.baseUrl,
-      },
-    });
-
+    const redeemResp = await this.redeemPlaybackUrl(redeemUrl, claimRes.claim, 'browser');
     const redeemData = redeemResp.data;
     if (!redeemData?.url) {
-      throw new Error('Failed to redeem HLS master playlist URL');
+      const errDetail = redeemData?.error || redeemData?.message || `status ${redeemResp.status}`;
+      throw new Error(`Failed to redeem HLS master playlist URL (${errDetail})`);
     }
 
     return {

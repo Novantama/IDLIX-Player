@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { IdlixScraperEngine } from '../engine/IdlixScraperEngine.js';
@@ -266,27 +267,12 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
       targetEndpoint = '/api' + targetEndpoint;
     }
 
-    const activeOrigin = engine.getSessionStatus().targetUrl || 'https://z2.idlixku.com';
-    let result = await engine.executeFetch(targetEndpoint, {
-      method: 'POST',
-      body: { claim, mode },
-      headers: {
-        Referer: `${activeOrigin}/`,
-        Origin: activeOrigin,
-      },
-    });
+    let result = await engine.redeemPlaybackUrl(targetEndpoint, claim, mode);
 
     if (result.status === 401 || result.status === 403) {
       req.log.warn(`[API] Redeem returned ${result.status}, re-authenticating...`);
       await engine.ensureAuthenticated(true);
-      result = await engine.executeFetch(targetEndpoint, {
-        method: 'POST',
-        body: { claim, mode },
-        headers: {
-          Referer: `${activeOrigin}/`,
-          Origin: activeOrigin,
-        },
-      });
+      result = await engine.redeemPlaybackUrl(targetEndpoint, claim, mode);
     }
 
     return reply.status(result.status).send(result.data);
@@ -298,21 +284,205 @@ export const apiRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) =>
 
   // High-performance All-in-One Playback Resolver
   fastify.get<{
-    Querystring: { contentType?: string; contentId?: string; contentTitle?: string };
+    Querystring: { contentType?: string; contentId?: string; contentTitle?: string; slug?: string };
   }>('/api/playback/resolve', async (req, reply) => {
-    const { contentType, contentId, contentTitle } = req.query;
+    const { contentType, contentId, contentTitle, slug } = req.query;
     if (!contentType || !contentId) {
       return reply.status(400).send({ error: 'contentType and contentId are required' });
     }
 
     try {
-      const playback = await engine.resolvePlayback(contentType, contentId, contentTitle);
+      const playback = await engine.resolvePlayback(contentType, contentId, contentTitle, slug);
       return playback;
     } catch (err: any) {
       req.log.error(err, 'Failed to resolve stream playback');
       return reply.status(500).send({
         error: err?.message || 'Failed to resolve stream playback',
       });
+    }
+  });
+
+  // Web Player HLS Proxy (bypasses browser CORS/Referer blocks and preserves ?t= token across manifests & segments)
+  fastify.get<{
+    Querystring: { url?: string; ref?: string };
+  }>('/api/proxy/hls', async (req, reply) => {
+    const targetUrl = req.query.url?.trim();
+    if (!targetUrl || (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://'))) {
+      return reply.status(400).send({ error: 'Valid http(s) url parameter is required' });
+    }
+
+    const activeOrigin = engine.getSessionStatus().targetUrl || 'https://z2.idlixku.com';
+    const rawRef = req.query.ref?.trim();
+    const referer =
+      rawRef && (rawRef.startsWith('http://') || rawRef.startsWith('https://'))
+        ? rawRef
+        : `${activeOrigin}/`;
+
+    const buildHeaders = (refUrl: string, includeOrigin: boolean): Record<string, string> => {
+      const headers: Record<string, string> = {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        Accept: '*/*',
+        Referer: refUrl,
+      };
+      if (includeOrigin) {
+        try {
+          headers.Origin = new URL(refUrl).origin;
+        } catch (_) {}
+      }
+      if (typeof req.headers.range === 'string' && req.headers.range) {
+        headers.Range = req.headers.range;
+      }
+      return headers;
+    };
+
+    try {
+      let upstreamRes = await fetch(targetUrl, {
+        headers: buildHeaders(referer, true),
+        redirect: 'follow',
+        signal: AbortSignal.timeout(25000),
+      });
+
+      // Some CDNs reject cross-origin Origin or prefer same-origin Referer
+      if (upstreamRes.status === 403) {
+        const selfReferer = `${new URL(targetUrl).origin}/`;
+        upstreamRes = await fetch(targetUrl, {
+          headers: buildHeaders(selfReferer, false),
+          redirect: 'follow',
+          signal: AbortSignal.timeout(25000),
+        });
+      }
+
+      if (!upstreamRes.ok) {
+        return reply.status(upstreamRes.status).send({ error: `Upstream HLS returned ${upstreamRes.status}` });
+      }
+
+      const finalUrl = upstreamRes.url || targetUrl;
+      const contentType = (upstreamRes.headers.get('content-type') || '').toLowerCase();
+      const pathname = new URL(finalUrl).pathname.toLowerCase();
+      const isPlaylistByHeader =
+        pathname.endsWith('.m3u8') ||
+        contentType.includes('mpegurl') ||
+        contentType.includes('vnd.apple.mpegurl');
+
+      let bodyBuffer: Buffer | null = null;
+      let looksLikeM3u8 = isPlaylistByHeader;
+
+      if (!looksLikeM3u8 && (contentType.startsWith('text/') || pathname.endsWith('.txt') || !pathname.includes('.'))) {
+        bodyBuffer = Buffer.from(await upstreamRes.arrayBuffer());
+        const head = bodyBuffer.subarray(0, 16).toString('utf-8').trimStart();
+        if (head.startsWith('#EXTM3U')) {
+          looksLikeM3u8 = true;
+        }
+      }
+
+      if (looksLikeM3u8) {
+        const playlistText = bodyBuffer
+          ? bodyBuffer.toString('utf-8')
+          : await upstreamRes.text();
+
+        const parentToken = new URL(finalUrl).searchParams.get('t');
+        const rewriteUri = (rawUri: string): string => {
+          try {
+            const resolved = new URL(rawUri, finalUrl);
+            if (parentToken && !resolved.searchParams.has('t')) {
+              resolved.searchParams.set('t', parentToken);
+            }
+            return `/api/proxy/hls?url=${encodeURIComponent(resolved.toString())}&ref=${encodeURIComponent(referer)}`;
+          } catch (_) {
+            return rawUri;
+          }
+        };
+
+        const rewritten = playlistText
+          .split(/\r?\n/)
+          .map((line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return line;
+            if (trimmed.startsWith('#')) {
+              return line.replace(/URI="([^"]+)"/g, (_match, uri) => `URI="${rewriteUri(uri)}"`);
+            }
+            return rewriteUri(trimmed);
+          })
+          .join('\n');
+
+        reply.header('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
+        reply.header('Access-Control-Allow-Origin', '*');
+        reply.header('Cache-Control', 'no-cache');
+        return reply.send(rewritten);
+      }
+
+      reply.header('Content-Type', upstreamRes.headers.get('content-type') || 'application/octet-stream');
+      reply.header('Access-Control-Allow-Origin', '*');
+      reply.header('Cache-Control', 'public, max-age=300');
+
+      const passthroughHeaders = ['content-length', 'content-range', 'accept-ranges'];
+      for (const h of passthroughHeaders) {
+        const val = upstreamRes.headers.get(h);
+        if (val) reply.header(h, val);
+      }
+
+      if (bodyBuffer) {
+        return reply.status(upstreamRes.status).send(bodyBuffer);
+      }
+      if (upstreamRes.body) {
+        return reply.status(upstreamRes.status).send(Readable.fromWeb(upstreamRes.body as any));
+      }
+      const fallbackBuf = Buffer.from(await upstreamRes.arrayBuffer());
+      return reply.status(upstreamRes.status).send(fallbackBuf);
+    } catch (err: any) {
+      req.log.error(err, 'HLS proxy failed');
+      return reply.status(502).send({ error: err?.message || 'Failed to proxy HLS stream' });
+    }
+  });
+
+  // Web Player Subtitle Proxy (adds CORS headers and converts .srt to WebVTT on the fly)
+  fastify.get<{
+    Querystring: { url?: string };
+  }>('/api/proxy/subtitle', async (req, reply) => {
+    let targetUrl = req.query.url?.trim() || '';
+    if (!targetUrl) {
+      return reply.status(400).send({ error: 'url parameter is required' });
+    }
+
+    const activeOrigin = engine.getSessionStatus().targetUrl || 'https://z2.idlixku.com';
+    if (targetUrl.startsWith('/')) {
+      targetUrl = `${activeOrigin}${targetUrl}`;
+    }
+
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      return reply.status(400).send({ error: 'Valid http(s) url parameter is required' });
+    }
+
+    try {
+      const subRes = await fetch(targetUrl, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          Accept: 'text/vtt, text/plain, */*',
+          Referer: `${activeOrigin}/`,
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!subRes.ok) {
+        return reply.status(subRes.status).send({ error: `Upstream subtitle returned ${subRes.status}` });
+      }
+
+      let text = (await subRes.text()).replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
+      if (!text.trimStart().startsWith('WEBVTT')) {
+        // Convert SRT timestamps (HH:MM:SS,mmm -> HH:MM:SS.mmm) for HTML5 <track>
+        text = 'WEBVTT\n\n' + text.replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+      }
+
+      reply.header('Content-Type', 'text/vtt; charset=utf-8');
+      reply.header('Access-Control-Allow-Origin', '*');
+      reply.header('Cache-Control', 'public, max-age=3600');
+      return reply.send(text);
+    } catch (err: any) {
+      req.log.error(err, 'Subtitle proxy failed');
+      return reply.status(502).send({ error: err?.message || 'Failed to proxy subtitle' });
     }
   });
 
